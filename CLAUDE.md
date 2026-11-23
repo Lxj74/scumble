@@ -98,6 +98,11 @@ written down anywhere.
   `rel59-exe` side by side: the one real failure (`skins`, the template rules outside `@layer app`) fixed before the
   tag, the six flakes green one at a time (`rel59r-t`, `rel59r-c`; `docs/TESTING.md`). Built: `dist/Scumble-0.1.59.msix`
   and `dist/store-listing/whats-new-0.1.59.txt`.
+- **Unreleased on `main`, for 0.1.60** (2026-11-23; the user: "arbeite weiter an dem nächsten release"): item 77 step 1
+  (the undo history as `this.undoHistory`, no visible change), the Realism Pass status line naming the DLSS5 fork
+  (issue #8, CHANGELOG "Unreleased"). **Next:** item 77 step 2, the selection (`docs/PLAN_ENCAPSULATION.md`); then the
+  release chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`).
+  `main` is 5 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
