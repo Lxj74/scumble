@@ -121,7 +121,7 @@ written down anywhere.
   0.1.59 above.
 - **GitHub:** the branches `main` and `gh-pages`; open issues #14 (item 74, the reply owed) and #8 (the user, 2026-11-23: the fix in our own fork,
   "unter denrakeiw": `DenRakEiw/ComfyUI-DLSS5-Enhancer` `main` carries PR #17's commit `e4f8f84` and a README note
-  `7e672a9`; the status line names the fork from 0.1.60; the reply on #8 drafted, not posted; upstream #17 still open); #15 closed 2026-11-19. Local only:
+  `7e672a9`; the status line names the fork from 0.1.60; the reply on #8 approved for after the 0.1.60 release (`dist/issue8_reply.md`); upstream #17 still open); #15 closed 2026-11-19. Local only:
   `demo-video` (the private demo-video commits, never pushed), `archive/k2-inflate-z`, six merged
   `worktree-agent-*` branches with their worktrees under `.claude/worktrees/`.
 - **The user's machine:** ComfyUI v0.45.2 since 2026-11-11 (flags `--windows-standalone-build --enable-cors-header
@@ -137,6 +137,9 @@ written down anywhere.
 - **The live node folder** to `36c1aac` (a fast-forward from `f7f278f`; it reloads the node in the running ComfyUI).
 - **The six merged agent worktrees** and their `worktree-agent-*` branches: remove them (asked, no answer; a
   `node_modules` junction goes first with `cmd //c rmdir`).
+- **The reply on issue #8, right after the 0.1.60 release** (the user, 2026-11-23: "ja, nach release ihm schreiben"):
+  the approved text is `dist/issue8_reply.md` (the fork, how to put it in place, asking smudgedidit to report back);
+  name 0.1.60 in it if its status line is the point; leave the issue open until smudgedidit answers.
 - **The reply on issue #14** (item 74).
 - **The user's own test of Stay on surface** on the arm picture (a hand flat on the wall is the hard case); a fix goes
   into the next update. Reaching a part of the surface cut off by what stands in front is not built
