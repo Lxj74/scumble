@@ -362,6 +362,11 @@ planning it. A new item gets its number and a few lines here; its research goes 
   list under *Templates* beside *Send* in `renderer/assistant.js` (`cleanTemplates`, a click fills the field, a name
   that exists asks before it replaces, × asks before it deletes); the gate step `templates_save_fill_replace_and_delete`.
   Not built: blanks to fill in, a model or Approve everything per template, shared template files, shipped ones.
+- 77: encapsulation of the editor's core (the user, 2026-11-23: "wollen wir das machen ?"), `docs/PLAN_ENCAPSULATION.md`:
+  `InpaintEditor` is one class of 775 methods and 362 fields over 38 part files, so every part writes every field. No
+  rewrite: one part per session becomes an object the editor owns, behaviour the same, full gates on both backends.
+  **Step 1, next: the undo history (`this.history`)**, its inventory in the plan (six writers outside it). Then the
+  selection, the document maps, relight; `@ts-check` on each new module and on the host contract. Not started.
 - Not numbered: **B3, the macOS build** (`docs/PLAN_0_1_24.md`; the user tests on their MacBook, a friend signs and
   releases, memory `scumble-macos-friend`; the public texts say "coming soon"). Linux is built by CI and was never
   run. Types stage 3 (`docs/PLAN_TYPES.md`). A parked idea, not a plan: a mobile companion.
