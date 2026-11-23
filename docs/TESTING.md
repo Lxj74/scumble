@@ -1209,6 +1209,10 @@ Known flakes; **re-run before believing any of these**:
   (rc 124); the next step is `smudge_clone_and_heal_read_only_their_box`. The same tree passed 149 of 149 alone right
   after (166 s, `e77s2-canvas-editor`), and on tiles beside it (188 s). The change under test (the selection state)
   does not touch the smudge / clone / heal path; the cause was not looked into. Re-run it before believing it.
+  The same day (`e77m`, the document maps, 15 gates side by side): `editor_test.py` hit the 420 s limit on both
+  backends (tiles after 59 steps, canvas after 68), no failed assertion and no step stuck: every step ran about four
+  times slower (the first 59 steps 410 s against 99 s alone). Alone right after, both passed 149 of 149 (207 s, 162 s).
+  So a side-by-side `editor` that ends in rc 124 is first a slow machine: sum the step times before looking for a hang.
 - 2026-11-15 (item 66's branch, tiles, other agents' gate instances running beside it): `comfyview_test.py` "camera and
   microphone ..." failed once with "mic denied: no question in the bar"; it passed in the run before and in the re-run
   right after (29 of 29) on the same tree. The change under test does not touch the media path (the bar's size is the

@@ -199,8 +199,7 @@ export class HistoryPanelPart {
             this.activeLayerId = null;
             this.history = [];
             this.savedSelections = [];
-            this.maps = {};
-            this.mapsVersion++;
+            this.docMaps.replaceAll(null);
             this.guides = { x: [], y: [] };
             this.compare = null;
             this.selState.replace(null);
@@ -404,8 +403,7 @@ export class HistoryPanelPart {
             this.activeLayerId = null;
             this.history = [];
             this.savedSelections = [];
-            this.maps = {};
-            this.mapsVersion++;
+            this.docMaps.replaceAll(null);
             this.guides = { x: [], y: [] };
             this.compare = null;
             this.selState.replace(null);

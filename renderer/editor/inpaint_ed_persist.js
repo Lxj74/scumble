@@ -359,7 +359,7 @@ export class PersistPart {
             } else {
                 this.depth = null;
             }
-            this.maps = {};
+            this.docMaps.replaceAll(null, { bump: false });   // filled below, one new version at the end
             if (state.maps && typeof state.maps === "object") {
                 for (const [kind, j] of Object.entries(state.maps)) {
                     if (!j || !j.ref) continue;
@@ -367,7 +367,7 @@ export class PersistPart {
                         const map = await mapFromJSON(kind, j, async (ref) => loadImageEl(viewUrl(ref)));
                         if (stale()) return;
                         if (map) {
-                            this.maps[kind] = map;
+                            this.docMaps.put(kind, map);
                             if (kind === "depth" && j.guide && !map.guide) {
                                 this.setStatus("the depth map's guide is missing; Recompute restores the edges", "warn");
                             }
@@ -380,7 +380,7 @@ export class PersistPart {
                     }
                 }
             }
-            this.mapsVersion++;
+            this.docMaps.bump();
             this.renderLayers();
             this.renderHistory();
             this.renderInfo();

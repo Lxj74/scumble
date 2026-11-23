@@ -114,6 +114,26 @@ dialog's hint, *Each area*'s signature) sees the change, and a grow / feather / 
 new picture is dropped as stale. `tools/selection_state_test.js` (plain Node, 34 checks) tests the object alone.
 Left for later, as optional: moving the many reads of `ed.sel` onto `selState.mask` and dropping the accessors.
 
+**The document maps, inventory (read 2026-11-23).** Writers of `maps`, `mapsVersion` and `_mapUndoPending`: the
+constructor and `destroy` (`inpaint_canvas.js`), the `depth` setter, `setMaps`, `setMap`, `setMapMeta` and
+`cancelMapMeta` (`inpaint_ed_depth.js`), `mapExtras` (`inpaint_ed_geometry.js`, each placed map's `xf` turned in
+place), the undo of a maps step and of a turn (`inpaint_ed_history.js`), the two new-document paths
+(`inpaint_ed_histpanel.js`), the restore of a saved document (`inpaint_ed_persist.js`). 134 reads in 23 files, the
+plugins' API among them. Tests set `ed.maps = {}`, write `ed.maps.depth` in place and bump `ed.mapsVersion`. The wrap
+links (`_wrapSeq`, `_wrapWriting`, `_syncingWraps`, `_wrapTimer`, `wrapGeo()`) are written in `inpaint_ed_filters.js`
+alone: they stay in their part, nothing outside writes them.
+
+**As built (2026-11-23).** `renderer/editor/inpaint_docmaps.js`, class `DocumentMaps`, `// @ts-check` and in
+`tsconfig.check.json`; `this.docMaps` (`inpaint_maps.js` is the maps' own code). Its fields: `all`, `version`,
+`preview` (`{ kind, prev }`). Its interface: `get`, `put` (no new version), `bump`, `set(maps)` (null drops, one
+version), `replaceAll(maps, { bump })` (a new object), `follow(place)` (the geometry's turn of each placed map, one
+version when any moved), `showPreview(kind, updated)` / `endPreview(kind)` / `cancelPreview()` / `forgetPreview()`.
+The old names forward: `maps` (its setter is `replaceAll` without a version, for tests), `mapsVersion` (a setter for
+tests), `_mapUndoPending` read only. **Two changes, on purpose:** a cancelled meta preview puts the map back under the
+kind it was previewed on (before it went back under the kind `cancelMapMeta` was called with; only "depth" is
+previewed today, so nobody saw it), and a new document or an undo of a turn drops a preview in flight.
+`tools/docmaps_test.js` (plain Node, 19 checks) tests the object alone.
+
 ## Step 3: types alongside
 
 - `// @ts-check` on each module of steps 1 and 2 as it is made.

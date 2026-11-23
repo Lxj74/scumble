@@ -43,9 +43,7 @@ export class DepthPart {
     }
 
     set depth(v) {
-        if (!this.maps) this.maps = {};
-        if (v) this.maps.depth = v;
-        else delete this.maps.depth;
+        this.docMaps.put("depth", v);
     }
 
     async ensureDepthMap({ force = false, edges = null, detail = null } = {}) {
@@ -366,12 +364,7 @@ export class DepthPart {
             if (prev && (!map || prev.data !== map.data)) bytes += prev.data ? prev.data.byteLength : 0;
         }
         this.pushUndoSnapshot({ kind: "maps", maps: prevs, bytes }, { label });
-        if (!this.maps) this.maps = {};
-        for (const [kind, map] of Object.entries(maps)) {
-            if (map) this.maps[kind] = map;
-            else delete this.maps[kind];
-        }
-        this.mapsVersion++;
+        this.docMaps.set(maps);
         const kinds = Object.keys(maps);
         for (const l of this.layers) {
             if (l.kind === "filter" && kinds.some((kind) => l.params?.limit?.source === kind || this.mapsOf(l).includes(kind))) this.markFilterChanged(l);
@@ -908,13 +901,7 @@ export class DepthPart {
             if (!map || prev.guide !== map.guide) snapBytes += prev.guide ? prev.guide.byteLength : 0;
         }
         this.pushUndoSnapshot({ kind: "maps", map: kind, prev, bytes: snapBytes }, { label });
-        if (!this.maps) this.maps = {};
-        if (map) {
-            this.maps[kind] = map;
-        } else {
-            delete this.maps[kind];
-        }
-        this.mapsVersion++;
+        this.docMaps.set({ [kind]: map });
 
         for (const l of this.layers) {
             if (l.kind === "filter" && (l.params?.limit?.source === (kind || "depth") || this.mapsOf(l).includes(kind || "depth"))) {
@@ -941,11 +928,7 @@ export class DepthPart {
         const newMeta = { ...(cur.meta || {}), ...patch };
         const updated = deriveMap(cur, { meta: newMeta });
         if (preview) {
-            if (!this._mapUndoPending) {
-                this._mapUndoPending = cur;
-            }
-            this.maps[kind] = updated;
-            this.mapsVersion++;
+            this.docMaps.showPreview(kind, updated);   // the first preview keeps `cur` for the undo step
             for (const l of this.layers) {
                 if (l.kind === "filter" && (l.params?.limit?.source === (kind || "depth") || this.mapsOf(l).includes(kind || "depth"))) {
                     this.markFilterChanged(l);
@@ -954,11 +937,9 @@ export class DepthPart {
             this.draw();
             return true;
         }
-        const prev = this._mapUndoPending || cur;
-        this._mapUndoPending = null;
+        const prev = this.docMaps.endPreview(kind) || cur;
         this.pushUndoSnapshot({ kind: "maps", map: kind, prev, bytes: 0 }, { label });
-        this.maps[kind] = updated;
-        this.mapsVersion++;
+        this.docMaps.set({ [kind]: updated });
         for (const l of this.layers) {
             if (l.kind === "filter" && (l.params?.limit?.source === (kind || "depth") || this.mapsOf(l).includes(kind || "depth"))) {
                 this.markFilterChanged(l);
@@ -977,12 +958,10 @@ export class DepthPart {
      * @returns {boolean}
      */
     cancelMapMeta(kind = "depth") {
-        if (!this._mapUndoPending) return false;
-        const prev = this._mapUndoPending;
-        this._mapUndoPending = null;
-        if (!this.maps) this.maps = {};
-        this.maps[kind] = prev;
-        this.mapsVersion++;
+        // the map goes back under the kind it was previewed on (it was kept without its kind before item 77)
+        const p = this.docMaps.cancelPreview();
+        if (!p) return false;
+        kind = p.kind;
         for (const l of this.layers) {
             if (l.kind === "filter" && (l.params?.limit?.source === (kind || "depth") || this.mapsOf(l).includes(kind || "depth"))) {
                 this.markFilterChanged(l);

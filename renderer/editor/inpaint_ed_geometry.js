@@ -788,15 +788,7 @@ export class GeometryPart {
             const xf = snapXf(xfMul(A, sv.xf || XF_IDENTITY));
             if (xfIsIdentity(xf)) delete sv.xf; else sv.xf = xf;
         }
-        if (this.maps) {
-            let anyMap = false;
-            for (const map of Object.values(this.maps)) {
-                if (!map || !map.xf) continue;
-                map.xf = snapXf(xfMul(A, map.xf));
-                anyMap = true;
-            }
-            if (anyMap) this.mapsVersion++;
-        }
+        this.docMaps.follow((xf) => snapXf(xfMul(A, xf)));
         for (const l of this.layers || []) {
             if (l && l.kind === "filter" && l.filter === "relight" && l.params && Array.isArray(l.params.lights)) {
                 for (const light of l.params.lights) {

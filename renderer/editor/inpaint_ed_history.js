@@ -657,13 +657,9 @@ export class HistoryPart {
             return;
         }
         if (snap.kind === "maps") {
-            if (!this.maps) this.maps = {};
             const entries = snap.maps ? Object.entries(snap.maps) : [[snap.map, snap.prev]];
-            for (const [kind, prev] of entries) {
-                if (prev) this.maps[kind] = prev;
-                else delete this.maps[kind];
-            }
-            this.mapsVersion++;
+            for (const [kind, prev] of entries) this.docMaps.put(kind, prev);
+            this.docMaps.bump();
             const kinds = entries.map(([k]) => k || "depth");
             for (const l of this.layers) {
                 if (l.kind === "filter" && kinds.some((kind) => l.params?.limit?.source === kind || this.mapsOf(l).includes(kind))) {
@@ -680,7 +676,7 @@ export class HistoryPart {
             const resized = snap.width !== this.width || snap.height !== this.height;
             // the snapshot's maps carry their own placement: the outgoing ones (kept by the step on the other stack) are
             // not turned back first, and the restored ones are not turned a second time
-            this.maps = {};
+            this.docMaps.replaceAll(null, { bump: false });
             this.restoreGeometry(snap);
             this.groups = (snap.groups || []).map((g) => ({ ...g }));
             if (snap.base !== this.base) this.recheckRestoredFiles({ base: snap.base });   // the layers below are all uploaded again
@@ -722,8 +718,7 @@ export class HistoryPart {
             if (doc.crop) { this.cropSettings = JSON.parse(JSON.stringify(doc.crop)); this.syncCropControls(); }
             if (doc.settings) this.settings = JSON.parse(JSON.stringify(doc.settings));
             this.syncGenControls();
-            this.maps = mapsCopy(snap.maps);
-            this.mapsVersion++;
+            this.docMaps.replaceAll(mapsCopy(snap.maps));
             this.renderSettings();
             this.renderLayers();
             this.renderInfo();

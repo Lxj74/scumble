@@ -73,6 +73,7 @@ async function main() {
     const canvasModule = await import(pathToFileURL(path.join(ROOT, "renderer", "editor", "inpaint_canvas.js")).href);
     const InpaintEditor = canvasModule.InpaintEditor;
     const mapsModule = await import(pathToFileURL(path.join(ROOT, "renderer", "editor", "inpaint_maps.js")).href);
+    const { DocumentMaps } = await import(pathToFileURL(path.join(ROOT, "renderer", "editor", "inpaint_docmaps.js")).href);
     const {
         makeMap, packRG16, unpackRG16, rg8View, guideView, deriveMap, mapToJSON, mapFromJSON, passToMap, sampleMap,
         fingerprint, fingerprintDiff, snapXf,
@@ -552,14 +553,13 @@ async function main() {
         width: 800,
         height: 600,
         tileMode: false,
-        maps: {},
-        mapsVersion: 0,
+        // the document maps (item 77): the editor's store, under the old names through the editor's own accessors (below)
+        docMaps: new DocumentMaps(),
         geometrySeq: 0,
         undo: [],
         redo: [],
         layers: [],
         _destroyed: false,
-        _mapUndoPending: null,
         geometryToken: InpaintEditor.prototype.geometryToken,
         setMap: InpaintEditor.prototype.setMap,
         setMapMeta: InpaintEditor.prototype.setMapMeta,
@@ -581,6 +581,9 @@ async function main() {
         snapshot: InpaintEditor.prototype.snapshot,
         snapshotOf: InpaintEditor.prototype.snapshotOf,
     };
+    for (const name of ["maps", "mapsVersion", "_mapUndoPending"]) {
+        Object.defineProperty(editor, name, Object.getOwnPropertyDescriptor(InpaintEditor.prototype, name));
+    }
 
     assert.strictEqual(editor.geometryToken(), 0, "initial geometryToken is 0");
 

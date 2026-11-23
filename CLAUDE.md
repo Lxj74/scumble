@@ -99,11 +99,12 @@ written down anywhere.
   tag, the six flakes green one at a time (`rel59r-t`, `rel59r-c`; `docs/TESTING.md`). Built: `dist/Scumble-0.1.59.msix`
   and `dist/store-listing/whats-new-0.1.59.txt`.
 - **Unreleased on `main`, for 0.1.60** (2026-11-23; the user: "arbeite weiter an dem nächsten release"): item 77 steps 1
-  and 2 (the undo history as `this.undoHistory`, the selection as `this.selState`; no visible change but the selection's
-  counter now bumped by a new mask), the Realism Pass status line naming the DLSS5 fork (issue #8, CHANGELOG
-  "Unreleased"). **Next:** item 77 step 2's next part, the document maps (`docs/PLAN_ENCAPSULATION.md`), or the release
+  and 2 (the undo history as `this.undoHistory`, the selection as `this.selState`, the document maps as
+  `this.docMaps`; no visible change but the selection's counter now bumped by a new mask and a cancelled map preview
+  put back under its own kind), the Realism Pass status line naming the DLSS5 fork (issue #8, CHANGELOG
+  "Unreleased"). **Next:** item 77 step 2's last part, relight (`docs/PLAN_ENCAPSULATION.md`), or the release
   chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`).
-  `main` is 6 commits ahead of origin (nothing pushed since the move).
+  `main` is 7 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
@@ -380,7 +381,9 @@ planning it. A new item gets its number and a few lines here; its research goes 
   plan. **The selection built 2026-11-23** (unreleased): `renderer/editor/inpaint_selection.js` `SelectionState`,
   `this.selState` (`selection` is the old canvas accessor), the old names (`sel`, `selectionSeq`, `cachedBounds` ...)
   as accessors, no writer outside it, `tools/selection_state_test.js`; `replace` / `invalidate` bump the counter (on
-  purpose, the plan's as built). **Next: the document maps**, then relight; `@ts-check` on each new module and on the
+  purpose, the plan's as built). **The document maps built 2026-11-23** (unreleased): `inpaint_docmaps.js`
+  `DocumentMaps`, `this.docMaps`, `maps` / `mapsVersion` / `_mapUndoPending` as accessors, `tools/docmaps_test.js`; the
+  wrap links stay in `inpaint_ed_filters.js` (nothing outside writes them). **Next: relight**, then `@ts-check` on each new module and on the
   host contract.
 - Not numbered: **B3, the macOS build** (`docs/PLAN_0_1_24.md`; the user tests on their MacBook, a friend signs and
   releases, memory `scumble-macos-friend`; the public texts say "coming soon"). Linux is built by CI and was never

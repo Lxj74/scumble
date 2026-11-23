@@ -54,6 +54,7 @@ import { FiltersPart } from "./inpaint_ed_filters.js";
 import { HistoryPart } from "./inpaint_ed_history.js";
 import { UndoHistory } from "./inpaint_history.js";
 import { SelectionState } from "./inpaint_selection.js";
+import { DocumentMaps } from "./inpaint_docmaps.js";
 import { PersistPart } from "./inpaint_ed_persist.js";
 import { ExportPart, bindExport } from "./inpaint_ed_export.js";
 import { OpenPart, bindOpen } from "./inpaint_ed_open.js";
@@ -226,9 +227,9 @@ class InpaintEditor {
         this.hoverObjectCanvas = null;
         this.depthPending = null;
         this.showDepthMap = false;
-        this.maps = {};
-        this.mapsVersion = 0;
-        this._mapUndoPending = null;
+        // the document maps by kind, their version and a meta preview's map (inpaint_docmaps.js; item 77). The old field
+        // names forward to it, below
+        this.docMaps = new DocumentMaps();
         this.rangeLimit = {
             source: host.depthSupported !== false ? "depth" : "luma",
             lo: 0,
@@ -1586,7 +1587,7 @@ class InpaintEditor {
     destroy() {
         this._destroyed = true;
         if (this.runProgress) this.runProgress.clear();   // its one-second ticker
-        this._mapUndoPending = null;
+        this.docMaps.forgetPreview();
         clearTimeout(this._refLayTimer);
         if (this._compositor) { try { this._compositor.dispose(); } catch (_) { /* context gone */ } this._compositor = null; }
         this.close();
@@ -1628,6 +1629,13 @@ Object.defineProperties(InpaintEditor.prototype, {
     selectionBox: { get() { return this.selState.box; }, configurable: true },
     _selEncoding: { get() { return this.selState.encoding; }, configurable: true },
     rangePending: { get() { return this.selState.range; }, configurable: true },
+});
+// The document maps under their old names (item 77 step 2): read by many parts and modules. Only `docMaps` changes the
+// set; the setters of `maps` (a whole new set) and `mapsVersion` are for tests that set them.
+Object.defineProperties(InpaintEditor.prototype, {
+    maps: { get() { return this.docMaps.all; }, set(v) { this.docMaps.replaceAll(v, { bump: false }); }, configurable: true },
+    mapsVersion: { get() { return this.docMaps.version; }, set(v) { this.docMaps.version = v; }, configurable: true },
+    _mapUndoPending: { get() { return this.docMaps.preview ? this.docMaps.preview.prev : null; }, configurable: true },
 });
 
 installParts(InpaintEditor, [PanelsPart, LayersPart, HistoryPanelPart, TextPart, TipsPart, HealPart, LiquifyPart, ShapePart, SelectPart, StackPart, SegmentPart, MasksPart, GeometryPart, PointerPart, DepthPart, FiltersPart, HistoryPart, PersistPart, ExportPart, OpenPart, StrokesPart, DisplayPart, CompositePart, MatchPart, DrawPart, RelightPart, ChromePart, ViewPart, RefsPart, ShadowPart, ScopePart]);
