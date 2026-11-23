@@ -90,7 +90,9 @@ jobs:
       # their typedefs; nothing is compiled, tsconfig.check.json says what is checked and why
       - name: Types
         shell: bash
-        run: npx tsc --noEmit -p tsconfig.check.json
+        run: |
+          python tools/host_contract.py --check
+          npx tsc --noEmit -p tsconfig.check.json
 
       # the committed renderer/editor/px/*.wasm must be what crates/px builds; rustup installs the compiler
       # crates/px/rust-toolchain.toml pins, with its wasm target, on the first cargo call

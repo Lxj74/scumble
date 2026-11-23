@@ -103,9 +103,10 @@ written down anywhere.
   `this.docMaps`, relight's runtime state as `this.relightState`; no visible change but the selection's counter now
   bumped by a new mask, a cancelled map preview put back under its own kind, and the whole-picture relight's read
   hiding its layers without a write to their eye, CHANGELOG line), the Realism Pass status line naming the DLSS5 fork
-  (issue #8, CHANGELOG "Unreleased"). **Next:** item 77 step 3, the host contract's typedef without `any`
-  (`docs/PLAN_ENCAPSULATION.md`), or the release chain of `docs/RELEASING.md` on the user's word, and right after it
-  the reply on #8 (`dist/issue8_reply.md`). `main` is 10 commits ahead of origin (nothing pushed since the move).
+  (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
+  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`). Item 77 is done. **Next:** the release
+  chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
+  the user's pick from the list. `main` is 11 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
@@ -388,7 +389,11 @@ planning it. A new item gets its number and a few lines here; its research goes 
   `inpaint_relightstate.js` `RelightState`, `this.relightState` (the map jobs, the march count, the layers a read
   hides: `shown` asks it, `relightWhole` writes no `visible`), map jobs re-read the layer by id after their await
   (`relightLive`), `_relightPending` / `_relightMarches` read-only accessors, `tools/relightstate_test.js`; the layer's
-  `_relight` cache stays on the layer. Step 2 is done. **Next: step 3**, the host contract's typedef without `any`.
+  `_relight` cache stays on the layer. **Step 3 built 2026-11-23**: `tools/host_contract.py` writes
+  `types/host_calls.js` (every `host.<member>` of the node-shipped editor modules read through `EditorHost`) and its
+  `--check` runs in the `types` gate, `npm run types` and CI; the typedef was silently cut at `refTokens` since 0.1.34
+  (an at sign in its text read as a JSDoc tag), now 68 members, no `any` (`Editor`, `EditorLayer`, `unknown`). Item 77
+  is done; the accessors of the old names and precise types for the `unknown`s are optional, later.
 - Not numbered: **B3, the macOS build** (`docs/PLAN_0_1_24.md`; the user tests on their MacBook, a friend signs and
   releases, memory `scumble-macos-friend`; the public texts say "coming soon"). Linux is built by CI and was never
   run. Types stage 3 (`docs/PLAN_TYPES.md`). A parked idea, not a plan: a mobile companion.
@@ -535,6 +540,9 @@ there; add a new flake there, with the date and what was ruled out.
   transcript). Encode first (`b = s.encode("utf-8")`, then write the bytes), or use the Edit tool.
 - The Write tool itself turns `\u0080` in a JS regex into the literal character. Check a written file for non-ASCII
   (`grep -nP "[^\x00-\x7F]"`) when it holds escapes.
+- An at sign followed by a word anywhere in a JSDoc block (`@img1` in a `@property`'s description) is a new tag to tsc:
+  the `EditorHost` typedef lost its last 18 members that way from 0.1.34 to 2026-11-23, silently. Write no at sign in a
+  typedef's text.
 - A backtick in a comment inside a GLSL template literal ends the JS string; `node --check` on an ES module file here
   reports nothing, the app reports `Unexpected identifier` at import.
 - A Bash-tool heredoc with an unquoted delimiter (`<<EOF`) runs every backtick span in its text as a command; quote it

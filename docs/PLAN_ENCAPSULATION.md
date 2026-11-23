@@ -163,6 +163,21 @@ draw). `tools/relightstate_test.js` (plain Node, 14 checks) tests the object alo
   the editor calls and the typedef lacks fails `tsc` (today only `build_node.py --check` sees it).
 - `strict` stays off for the rest of the code; no file is checked that nobody touches.
 
+**As built (2026-11-23).** The editor modules are not `@ts-check`ed, so the calls cannot be checked where they are:
+`tools/host_contract.py` writes `types/host_calls.js`, a checked file that reads every `host.<member>` of the modules the
+node build ships (`build_node.py` `FILES`, the same grep) through `EditorHost`. A member the editor calls and the
+typedef lacks is TS2339 there; `--check` also fails on a stale file and on a typedef member no editor module calls. The
+`types` gate, `npm run types` and CI's Types step run the check before tsc. **Found on the way:** the typedef had been
+read only up to `refTokens` since 0.1.34: its description held an at sign before "img1", which JSDoc reads as a new
+tag, so the 18 members after it were never checked by `contracts.js` (the app's host answered all of them once they
+were read). The typedef now: the 9 members the editor called and it lacked (`warmRemove`, `surfaceModels`,
+`surfaceAnalysis`, `depthDetailSetting`, `getDepthDetail`, `setDepthDetail`, `getRelightSettings`, `setRelightSettings`,
+`relightWhole`) in, the 4 only the app calls (`segmentKey`, `segmentLogits`, `depthInApp`, `pictureInputBox`) out, 68
+members. No `any` in `EditorHost` or `EditorApi`: `editor` is `Editor` (the `InpaintEditor` class, tsc read it already,
+no time added), a layer `EditorLayer` (an object with an `id`), the DOM types where a member takes one, `unknown` for
+what the editor only hands on (a recipe row, a run's answer). Mutation: a typedef line taken out fails tsc, a new
+`host.x` in an editor module fails the check. Left, as optional: precise types for the `unknown`s, a member at a time.
+
 ## Not part of it
 
 The main process (`main.js`, 1,757 lines), the file sizes (no file above 2,800 lines since item 56), and the tests

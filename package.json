@@ -28,7 +28,7 @@
     "mcp-test": "python tools/mcp_test.py",
     "mcp": "electron . --mcp",
     "lint": "eslint .",
-    "types": "tsc --noEmit -p tsconfig.check.json",
+    "types": "python tools/host_contract.py --check && tsc --noEmit -p tsconfig.check.json",
     "dist:mcpb": "node tools/mcpb_build.js"
   },
   "dependencies": {

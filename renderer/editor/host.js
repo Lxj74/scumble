@@ -37,9 +37,11 @@ import { HostHelperWatchPart } from "./host_helperwatch.js";
 // The editor modules (inpaint_*.js) are shared with the ComfyUI node, so every member the
 // editor asks for has to exist in *this* file and in the node's own js/host.js.
 // tools/build_node.py --check enforces that by grepping both files for the names the editor
-// uses; the two typedefs below are the same statement in a form a type checker reads, and
-// types/contracts.js is where this side of it is checked against them. The node repository
-// has no tsconfig, so the grep stays: it is the only check that reaches over there.
+// uses; the two typedefs below are the same statement in a form a type checker reads,
+// types/contracts.js is where this side of it is checked against them, and types/host_calls.js
+// (written by tools/host_contract.py, checked by the `types` gate and CI) reads every member the
+// editor uses through the typedef, so one the typedef lacks fails tsc. The node repository has
+// no tsconfig, so the grep stays: it is the only check that reaches over there.
 //
 // A member belongs here when an editor module calls it. Nothing else is the contract - the
 // shell talks to this object too, and those members are deliberately absent.
@@ -51,78 +53,96 @@ import { HostHelperWatchPart } from "./host_helperwatch.js";
  * @typedef {Object} EditorApi
  * @property {(path: string) => string} apiURL
  * @property {(path: string, init?: RequestInit) => Promise<Response>} fetchApi
- * @property {(number: number, prompt: { output: any, workflow?: any }) => Promise<any>} queuePrompt
- * @property {(type: string, fn: (ev: { detail: any }) => void) => void} addEventListener
+ * @property {(number: number, prompt: { output: unknown, workflow?: unknown }) => Promise<unknown>} queuePrompt
+ * @property {(type: string, fn: (ev: { detail: unknown }) => void) => void} addEventListener
  */
 
 /**
- * The document-level services. `editor` is one InpaintEditor instance; it is `any` here
- * because the class is 12,000 lines of its own and typing it is not this stage's business.
+ * The editor as the host sees it (renderer/editor/inpaint_canvas.js; its parts are mixed into the class).
+ * @typedef {import("./inpaint_canvas.js").InpaintEditor} Editor
+ */
+
+/**
+ * A layer of the document as the host is handed it: a plain object the editor owns (inpaint_ed_layers.js).
+ * @typedef {{ id: string, name?: string, kind?: string, [key: string]: unknown }} EditorLayer
+ */
+
+/**
+ * The document-level services: every member an editor module calls (item 77 step 3,
+ * docs/PLAN_ENCAPSULATION.md). `editor` is the InpaintEditor; a value the editor only hands on
+ * (a recipe row, a run's answer, a helper's result) is `unknown` here, not `any`, so a reader in a
+ * checked file has to look before it uses it. types/host_calls.js (tools/host_contract.py) reads
+ * every host.<member> the editor modules use through this type, so a member missing here fails tsc.
  *
  * @typedef {Object} EditorHost
  * @property {boolean} connected                         is a ComfyUI server connected
  * @property {boolean} overlay                           node: a modal over the graph; app: the window
  * @property {Record<string, string> | null} text        node-specific wording, null = the editor's own
- * @property {(rootEl: any) => void} mount               where the editor's DOM goes
- * @property {(editor: any) => void} editorBuilt         the modal is built
- * @property {(editor: any) => void} changed             state changed: autosave
- * @property {(editor: any) => boolean} isActive         is this the editor the user is looking at
- * @property {() => any[]} editors                       every open editor
- * @property {() => any} graph                           the litegraph graph (node) or null (app)
+ * @property {(rootEl: HTMLElement) => void} mount               where the editor's DOM goes
+ * @property {(editor: Editor) => void} editorBuilt         the modal is built
+ * @property {(editor: Editor) => void} changed             state changed: autosave
+ * @property {(editor: Editor) => boolean} isActive         is this the editor the user is looking at
+ * @property {() => Editor[]} editors                       every open editor
+ * @property {() => unknown} graph                           the litegraph graph (node) or null (app)
  * @property {() => string[]} referencedTexts            file names outside the editors to keep
- * @property {(editor: any) => void} onEscape            Escape: close the overlay (node) or nothing
- * @property {(editor: any, tool: string, prev: string) => void} toolChanged
- * @property {(editor: any, mode: string) => void} modeChanged
- * @property {(editor: any, phase: string, e: any, ix: number, iy: number, p: any) => boolean} pluginPointer
- * @property {(editor: any, e: any, k: string) => boolean} pluginKey
- * @property {(editor: any, ctx: any) => void} pluginOverlay
- * @property {(pluginId: string, where: string, err: any) => void} [pluginReport]
- * @property {() => any} nodeTypes                       the server's node classes, for the settings rows
- * @property {(editor: any) => any[]} settingTargets     the recipe's settings rows for this editor
- * @property {(editor: any, list: any, targets: any) => void} renderPresets
- * @property {(editor: any, name: string, fallback?: any) => any} widgetValue
- * @property {(editor: any) => any} resultInputState     which result input the recipe writes to
- * @property {(editor: any) => any} workflowForPng       the workflow to embed in a saved PNG, null = embed nothing
- * @property {(editor: any, sec: any) => void} buildGenerateExtras   the extra rows under Generate
- * @property {(editor: any, opts?: { refs?: any, area?: any }) => Promise<any>} queueGenerate   run the recipe; `refs`: the click's reference snapshot (docs/PLAN_REFS.md C3); `area`: one area of the selection instead of the selection (the app's Each area; the node's host is never given one)
+ * @property {(editor: Editor) => void} onEscape            Escape: close the overlay (node) or nothing
+ * @property {(editor: Editor, tool: string, prev: string) => void} toolChanged
+ * @property {(editor: Editor, mode: string) => void} modeChanged
+ * @property {(editor: Editor, phase: string, e: PointerEvent, ix: number, iy: number, p: unknown) => boolean} pluginPointer
+ * @property {(editor: Editor, e: KeyboardEvent, k: string) => boolean} pluginKey
+ * @property {(editor: Editor, ctx: unknown) => void} pluginOverlay
+ * @property {(pluginId: string, where: string, err: unknown) => void} [pluginReport]
+ * @property {() => unknown} nodeTypes                       the server's node classes, for the settings rows
+ * @property {(editor: Editor) => unknown[]} settingTargets     the recipe's settings rows for this editor
+ * @property {(editor: Editor, list: unknown, targets: unknown) => void} renderPresets
+ * @property {(editor: Editor, name: string, fallback?: unknown) => unknown} widgetValue
+ * @property {(editor: Editor) => unknown} resultInputState     which result input the recipe writes to
+ * @property {(editor: Editor) => unknown} workflowForPng       the workflow to embed in a saved PNG, null = embed nothing
+ * @property {(editor: Editor, sec: HTMLElement) => void} buildGenerateExtras   the extra rows under Generate
+ * @property {(editor: Editor, opts?: { refs?: unknown, area?: unknown }) => Promise<unknown>} queueGenerate   run the recipe; `refs`: the click's reference snapshot (docs/PLAN_REFS.md C3); `area`: one area of the selection instead of the selection (the app's Each area; the node's host is never given one)
  * @property {() => boolean} generateNewAvailable
- * @property {(editor: any) => void} openGenerateNew
- * @property {(editor: any) => ({ models: { value: string, label: string, group: string, providers: { value: string, label: string, aspects: string[], classes: { value: number, label: string }[] }[] }[], pick: { model: string, provider: string, aspect: string | null, size: number | null } | null, working: (aspect: string, size: number) => [number, number] } | null)} [newCanvasChoices]   New with a model (item 34): the models, the preset to open on, the canvas of a preset; the node answers null
- * @property {(editor: any, target: { recipe: string, provider?: string | null, aspect: string | null, size: number, width: number, height: number } | null) => Promise<void>} [newCanvasChosen]   New made a canvas for a preset: remember it, select its recipe; null (a New of a size given by hand): forget the last preset
- * @property {(editor: any, fmt?: string) => any} exportCanvas
- * @property {(editor: any) => boolean} exportIsPlain
- * @property {(editor: any) => number} exportQuality
- * @property {(blob: Blob, name: string, opts?: { editor?: any, download?: boolean }) => Promise<any>} saveExport   the node takes `opts`, the app ignores it
- * @property {() => any[]} upsampleBackends
- * @property {(editor: any, backend: any, instruction: string, refs?: any[]) => Promise<any>} upsampleInApp   `refs`: the references the prompt names (docs/PLAN_REFS.md 26d1)
- * @property {(ctx: any) => string} upsampleInstruction
- * @property {(backend: any, instruction: string, canvas: any, images?: { png: Uint8Array, label: string }[]) => Promise<any>} askLLM   `images`: reference pictures (docs/PLAN_REFS.md 26d2)
- * @property {() => any[]} cutoutBackends
- * @property {(editor: any, layer: any, backend: any) => Promise<any>} cutoutInApp
+ * @property {(editor: Editor) => void} openGenerateNew
+ * @property {(editor: Editor) => ({ models: { value: string, label: string, group: string, providers: { value: string, label: string, aspects: string[], classes: { value: number, label: string }[] }[] }[], pick: { model: string, provider: string, aspect: string | null, size: number | null } | null, working: (aspect: string, size: number) => [number, number] } | null)} [newCanvasChoices]   New with a model (item 34): the models, the preset to open on, the canvas of a preset; the node answers null
+ * @property {(editor: Editor, target: { recipe: string, provider?: string | null, aspect: string | null, size: number, width: number, height: number } | null) => Promise<void>} [newCanvasChosen]   New made a canvas for a preset: remember it, select its recipe; null (a New of a size given by hand): forget the last preset
+ * @property {(editor: Editor, fmt?: string) => unknown} exportCanvas
+ * @property {(editor: Editor) => boolean} exportIsPlain
+ * @property {(editor: Editor) => number} exportQuality
+ * @property {(blob: Blob, name: string, opts?: { editor?: Editor, download?: boolean }) => Promise<unknown>} saveExport   the node takes `opts`, the app ignores it
+ * @property {() => unknown[]} upsampleBackends
+ * @property {(editor: Editor, backend: unknown, instruction: string, refs?: unknown[]) => Promise<unknown>} upsampleInApp   `refs`: the references the prompt names (docs/PLAN_REFS.md 26d1)
+ * @property {(ctx: unknown) => string} upsampleInstruction
+ * @property {(backend: unknown, instruction: string, canvas: HTMLCanvasElement, images?: { png: Uint8Array, label: string }[]) => Promise<unknown>} askLLM   `images`: reference pictures (docs/PLAN_REFS.md 26d2)
+ * @property {() => unknown[]} cutoutBackends
+ * @property {(editor: Editor, layer: EditorLayer, backend: unknown) => Promise<unknown>} cutoutInApp
  * @property {() => boolean} objectsInApp
- * @property {(editor: any, pending: any) => Promise<any>} findObjects
- * @property {(editor: any, ix: number, iy: number, p?: any) => Promise<any>} selectPoint
- * @property {(editor: any, box: number[], opts?: any) => Promise<any>} selectBox
- * @property {(editor: any, layer: any) => Promise<{ key: string, image: any }>} segmentKey
- * @property {(editor: any, points?: any[], box?: any, layer?: any) => Promise<{ logits: Float32Array, n: number, score: number }>} segmentLogits
- * @property {() => Promise<any>} freeHelpers
+ * @property {(editor: Editor, pending: unknown) => Promise<unknown>} findObjects
+ * @property {(editor: Editor, ix: number, iy: number, p?: unknown) => Promise<unknown>} selectPoint
+ * @property {(editor: Editor, box: number[], opts?: unknown) => Promise<unknown>} selectBox
+ * @property {() => Promise<unknown>} freeHelpers
  * @property {boolean} vlmLoaded                                     Florence-2 sits in the helpers' process (host_vlm.js): a local Generate frees it; the node never loads it
  * @property {boolean} removeSupported
- * @property {boolean} refTokens                                     @img1 in the prompt names a reference layer (docs/PLAN_REFS.md); the node has none yet
- * @property {(editor: any, over?: any, opts?: { keep?: boolean }) => Promise<any>} refLayout   the chosen route's name for each shown reference ({ names, over, none, local, cap, refuse, guess? }); the node answers null
- * @property {(editor: any) => { takes: boolean, count: number, schema: string | null } | null} boxSwitch   the Boxes switch under the prompt (docs/PLAN_BOXES.md S3d): does the recipe send boxes, how many the document holds, in which format (flux3, ideogram4); the node answers takes true, schema flux3 (its box_prompt output) and accepts a null editor
+ * @property {boolean} refTokens                                     a reference token (img1 after an at sign) in the prompt names a reference layer (docs/PLAN_REFS.md); the node has none yet. No at sign in this block: JSDoc reads one as a new tag and drops every member after it
+ * @property {(editor: Editor, over?: unknown, opts?: { keep?: boolean }) => Promise<unknown>} refLayout   the chosen route's name for each shown reference ({ names, over, none, local, cap, refuse, guess? }); the node answers null
+ * @property {(editor: Editor) => { takes: boolean, count: number, schema: string | null } | null} boxSwitch   the Boxes switch under the prompt (docs/PLAN_BOXES.md S3d): does the recipe send boxes, how many the document holds, in which format (flux3, ideogram4); the node answers takes true, schema flux3 (its box_prompt output) and accepts a null editor
  * @property {boolean} boxesInEditor                                 the editor owns the boxes itself (inpaint_boxes.js: tool X, the Boxes section, the boxes in getValue): the node true, the app false (its Boxes plugin owns them; docs/PLAN_NODE_BOXES.md D5)
- * @property {() => any} removeModel
- * @property {(editor: any, req: { image: Uint8Array, mask: Uint8Array }) => Promise<any>} removeInApp
+ * @property {() => unknown} removeModel
+ * @property {(editor: Editor, req: { image: Uint8Array, mask: Uint8Array }) => Promise<unknown>} removeInApp
  * @property {boolean} [depthSupported]
  * @property {boolean} [surfaceSupported] Deep paint's surface maps (the app's host; the layer list's Deep paint button)
- * @property {() => any} [depthModel]
- * @property {(editor: any, w: number, h: number) => Promise<{ image: Uint8Array, width: number, height: number }>} [depthInput]
- * @property {(editor: any, req: { image: Uint8Array, width: number, height: number }) => Promise<{ depth: Float32Array, min: number, max: number, ms: number, provider: string }>} [computeDepth]
- * @property {(editor: any, req: { image: Uint8Array, width: number, height: number }) => Promise<{ depth: Float32Array, min: number, max: number, ms: number, provider: string }>} [depthInApp]
- * @property {(editor: any, w: number, h: number, opts?: any) => Promise<{ image: Uint8Array, width: number, height: number }>} [pictureInput]
- * @property {(editor: any, box: any, w: number, h: number, opts?: any) => Promise<{ image: Uint8Array, width: number, height: number }>} [pictureInputBox]
- * @property {(editor: any, opts: { grid?: number, route?: string, onProgress?: (i: number, n: number) => void, signal?: AbortSignal, global?: any }) => Promise<{ data: Float32Array, w: number, h: number, fits: any[], route: string, grid: number } | null>} [depthDetail]
+ * @property {() => unknown} [depthModel]
+ * @property {(editor: Editor, w: number, h: number) => Promise<{ image: Uint8Array, width: number, height: number }>} [depthInput]
+ * @property {(editor: Editor, req: { image: Uint8Array, width: number, height: number }) => Promise<{ depth: Float32Array, min: number, max: number, ms: number, provider: string }>} [computeDepth]
+ * @property {(editor: Editor, w: number, h: number, opts?: unknown) => Promise<{ image: Uint8Array, width: number, height: number }>} [pictureInput]
+ * @property {(editor: Editor, opts: { grid?: number, route?: string, onProgress?: (i: number, n: number) => void, signal?: AbortSignal, global?: unknown }) => Promise<{ data: Float32Array, w: number, h: number, fits: unknown[], route: string, grid: number } | null>} [depthDetail]
+* @property {(editor: Editor) => Promise<{ ready: boolean, seconds?: number, provider?: string, error?: string } | null>} warmRemove   the Remove model loaded ahead of the first stroke; null without a model; never throws (the node answers null)
+ * @property {() => { intrinsic: { id: string } | null, normals: { id: string } | null } | null} surfaceModels   Deep paint's two models, each null when absent (the node answers null)
+ * @property {(editor: Editor, req: { image: Uint8Array, width: number, height: number }) => Promise<{ intrinsic: Record<string, unknown>, normals: Record<string, unknown> }>} surfaceAnalysis   Deep paint's decomposition and normals of one picture (the node throws)
+ * @property {string} depthDetailSetting                            the depth map's detail as picked ("standard" ...); the depth panel writes it when the host has no setDepthDetail
+ * @property {() => string} getDepthDetail
+ * @property {(val: string) => void} setDepthDetail                  remembered in the settings (the app; the node keeps nothing)
+ * @property {() => Record<string, unknown>} getRelightSettings      the relight panel's route, strength and style as last picked
+ * @property {(patch: Record<string, unknown>) => void} setRelightSettings   a key set to undefined is forgotten
+ * @property {(editor: Editor, layer: EditorLayer, opts?: { route?: string, deadline?: number, prompt?: string }) => Promise<{ layer: EditorLayer | null, seconds: number, note: string, changed: boolean, route: string, seed: unknown }>} relightWhole   the whole picture through a generative relight route (host_relight.js; the node throws)
  */
 
 // ---- host --------------------------------------------------------------------------------

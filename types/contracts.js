@@ -15,9 +15,10 @@ import { commands, describe } from "../renderer/commands.js";
 const _api = api;
 
 /**
- * The 44 members the editor modules call. The node's own js/host.js has to answer the same
- * list; only tools/build_node.py --check reaches that repository, and it greps for these
- * names.
+ * The members the editor modules call (68 on 2026-11-23). The other direction, a member the
+ * editor calls and the typedef lacks, is types/host_calls.js (tools/host_contract.py). The
+ * node's own js/host.js has to answer the same list; only tools/build_node.py --check reaches
+ * that repository, and it greps for these names.
  * @type {import("../renderer/editor/host.js").EditorHost}
  */
 const _host = host;

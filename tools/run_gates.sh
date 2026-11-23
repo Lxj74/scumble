@@ -118,7 +118,8 @@ for g in "$@"; do
     # no app and no Python: the four rules that catch what `node --check` cannot see
     lint) timeout 600 npx eslint . > "$OUT/lint.log" 2>&1; rc=$? ;;
     # no app and no Python either: the three contracts, checked by tsc (docs/PLAN_TYPES.md)
-    types) timeout 600 npx tsc --noEmit -p tsconfig.check.json > "$OUT/types.log" 2>&1; rc=$? ;;
+    # first that types/host_calls.js lists the host members the editor calls (tools/host_contract.py, item 77 step 3)
+    types) { python tools/host_contract.py --check && timeout 600 npx tsc --noEmit -p tsconfig.check.json; } > "$OUT/types.log" 2>&1; rc=$? ;;
     # the bytes of every row, then each K1 route's two arms on the rows it routes (docs/PLAN_WASM_K1.md S7), each run
     # under its own timeout
     pxjobs) { timeout 1200 python tools/px_jobs.py --check \
