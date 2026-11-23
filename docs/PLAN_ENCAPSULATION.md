@@ -18,14 +18,14 @@ is checked only by `build_node.py --check`: the undeclared `host.vlmLoaded` of 2
 ## The rules
 
 - **No rewrite.** One part per session, behind the gates, the behaviour the same byte for byte.
-- A part becomes an object the editor owns (`this.history`), with its fields inside it and a narrow interface. The
+- A part becomes an object the editor owns (`this.undoHistory`), with its fields inside it and a narrow interface. The
   editor keeps forwarding methods for the old names while callers move, so a session can stop at any commit; the
   forwards go in the session that moves the last caller.
 - Test tier: **full** (both backends, the editor gate in full, not sharded) for the history and anything that writes
   pixels or the document; the exe gates at the next release.
 - The new module is `// @ts-check` from its first commit; its interface gets JSDoc types without `any`.
 
-## Step 1: the undo history (`this.history`)
+## Step 1: the undo history (`this.undoHistory`)
 
 **What moves in.** The fields `undo`, `redo`, `undoBytes`, `undoTrimmed`, `maxUndo`, `maxUndoBytes`, `historyGen`
 and the byte flag `_counted` of a step (since 2026-11-20); the methods that own them: `pushUndo`, `pushUndoSnapshot`,
@@ -57,6 +57,22 @@ step or `historyGen`):
 `selection`, `liquify` (inside `editor`), `glb`, `assistant`, `document`, `docux`, `mcp` and `groups` pass on both
 backends; a new plain-Node test of the history object alone (budget never below zero, trim against bytes and steps,
 redo dropped on push, take / grow / shrink / moveUnder); `tsc` checks the module.
+
+**As built (2026-11-23).** `renderer/editor/inpaint_history.js`, class `UndoHistory`, `// @ts-check` and in
+`tsconfig.check.json`; `this.undoHistory` made in the editor's constructor with the depth and a `release` callback (the
+editor's `releaseSnapshot`, which revokes a step's blob URLs and calls `history.uncount`). Its interface:
+`push`, `dropRedo`, `trim`, `setDepth(depth, fallback)`, `clear`, `take`, `popTop(redo)`, `pushOther(step, toUndo)`,
+`moveUnder(count)`, `count`, `uncount`, `grow`, `shrink`, `rows(labels)`, and `replace(undo, redo)` for tests. The
+old names forward through accessors on `InpaintEditor.prototype` (`inpaint_canvas.js`, next to `installParts`):
+`undo` and `redo` (setters for tests only), `undoBytes` and `undoTrimmed` (read only), `maxUndo` / `maxUndoBytes`
+(set by tests), `historyGen` (set by the parts that bump it). The six writers moved: the constructor, `endLiquify`
+(`shrink`), `takeUndoEntry` (`take`), the shell's assistant step (`moveUnder`), the glb plugin (`grow`), and inside
+`inpaint_ed_history.js` `pushUndoSnapshot`, `trimUndo`, `setUndoDepth`, `undoList`, `clearUndo`, `releaseSnapshot`
+and `historyStepNow`'s stack moves. No file outside `inpaint_history.js` writes the stacks or the count
+(`git grep` for `.undo.push|pop|splice|shift`, `.redo.push|pop|splice`, `undoBytes =`, `.undo =`, `.redo =`).
+`tools/build_node.py` lists the module; the node's `js/host.js` needs nothing new. `tools/history_test.js` (plain
+Node, 22 checks) tests the object alone. Left for later, as optional: moving the many reads (`ed.undo.length`, the
+top step) onto `history`, and then dropping the accessors.
 
 ## Step 2: the same pattern, one part per session
 

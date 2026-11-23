@@ -1058,6 +1058,13 @@ sequential gate (`run_gates_both.sh` without `--shards`, or `run_gates.sh`) befo
 
 Known flakes; **re-run before believing any of these**:
 
+- 2026-11-23 (item 77 step 1, `hist3`, both backends side by side after two runs had collided on the same ports and
+  were killed): `editor` on tiles failed `a_settled_read_builds_its_levels_in_the_worker_not_here` ("took no cell from
+  the worker", listed below too), then a rerun alone timed out at 420 s after 59 steps; `document` on canvas failed
+  three round trips with "differs from its mirror file" / "not in the local store". Green alone: `document` (canvas),
+  the three steps by `SCUMBLE_EDITOR_ONLY`, and the full `editor` on tiles (149 steps, 215 s). Ruled out: the history
+  change (its own test and every other gate green; the steps that failed read no undo state).
+
 - 2026-11-20 (0.1.59's exe gates, `rel59-exe`, both backends side by side): `log` `status_kinds` (the blink still on
   after 8 s, both sides), `generate` `cancel_and_a_closed_tab_add_nothing` (canvas, the deadline's take-off),
   `videoframe` (a frame callback timed out: an occluded window, both sides), `clip` "base off the view" (the view

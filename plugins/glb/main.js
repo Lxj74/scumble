@@ -188,8 +188,7 @@ export function activate(scumble) {
             if (top && top !== before && top.kind === "layers") {
                 // this plugin's data as it was rides on that step (only this plugin's: `data` of a layers step)
                 Object.assign(top, { dataKey: slice.dataKey, dataValue: slice.dataValue });
-                top.bytes = (top.bytes || 0) + slice.bytes;
-                ed.undoBytes = (ed.undoBytes || 0) + slice.bytes;
+                ed.undoHistory.grow(top, slice.bytes);   // counted on the budget as the step is
                 stepTaken = true;
             }
         }

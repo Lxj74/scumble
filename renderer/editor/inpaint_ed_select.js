@@ -634,8 +634,7 @@ export class SelectPart {
      */
     takeUndoEntry(snap) {
         if (!snap) return null;
-        const i = this.undo.lastIndexOf(snap);
-        return i < 0 ? null : this.undo.splice(i, 1)[0];
+        return this.undoHistory.take(snap);
     }
 
     /**

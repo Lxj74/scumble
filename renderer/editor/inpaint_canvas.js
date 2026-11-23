@@ -52,6 +52,7 @@ import { PointerPart } from "./inpaint_ed_pointer.js";
 import { DepthPart } from "./inpaint_ed_depth.js";
 import { FiltersPart } from "./inpaint_ed_filters.js";
 import { HistoryPart } from "./inpaint_ed_history.js";
+import { UndoHistory } from "./inpaint_history.js";
 import { PersistPart } from "./inpaint_ed_persist.js";
 import { ExportPart, bindExport } from "./inpaint_ed_export.js";
 import { OpenPart, bindOpen } from "./inpaint_ed_open.js";
@@ -180,12 +181,9 @@ class InpaintEditor {
         this.lastRunNotes = [];         // what the last run's route declared it left out
         this.lastRunError = null;       // why the last Generate click was refused (commands.generate throws it)
         this.selectionLabel = "";       // what the selection is, when it came from "Select by text"
-        this.undo = [];
-        this.redo = [];
-        this.historyGen = 0;            // bumped by every change an undo that is still loading its step must not run over
-        this.maxUndo = MAX_UNDO;        // the history's depth: steps and bytes (the app's Settings › Memory sets them)
-        this.maxUndoBytes = MAX_UNDO_BYTES;
-        this.undoTrimmed = false;       // older steps were dropped since the last clear: the list's first row is not the start
+        // the undo history: the stacks, their byte budget, the depth (the app's Settings › Memory sets it) and the
+        // generation counter (inpaint_history.js; item 77). The fields of the same names forward to it, below
+        this.undoHistory = new UndoHistory({ maxSteps: MAX_UNDO, maxBytes: MAX_UNDO_BYTES, release: (s) => this.releaseSnapshot(s) });
         this.snapshots = [];            // named snapshots: [{ name, at, snap }] (turn snapshots, tiles only; not saved)
         this.selectionDirty = true;
         this.selectionLoose = false;   // cachedBounds is a superset of the selection, made exact on the next getBounds()
@@ -203,7 +201,6 @@ class InpaintEditor {
         this.viewCanvas = null;         // the visible region, composited at screen resolution
         this.viewPass = null;           // {x, y, w, h, sx, sy} while a region is being composited
         this.flatCache = null;          // {version, key, canvas} for eyedropper / clone / bucket / wand
-        this.undoBytes = 0;
         this.selectionEncoded = false;  // the selection PNG in selectionDataUrl is up to date
         this.selectionSeq = 0;
         this.uploaded = this.makeUploaded();
@@ -1615,6 +1612,19 @@ class InpaintEditor {
         if (this.scopeObserver) { try { this.scopeObserver.disconnect(); } catch (_) { /* ignore */ } }
     }
 }
+// The history's fields under their old names (item 77 step 1; `this.history` is the run history): read by many parts. Only the history writes the stacks and
+// the count; the setters of `undo`, `redo` and the depth are for tests that set them, `historyGen`'s for the parts that
+// bump it (a change a waiting undo must not run over).
+Object.defineProperties(InpaintEditor.prototype, {
+    undo: { get() { return this.undoHistory.undo; }, set(v) { this.undoHistory.replace(v, null); }, configurable: true },
+    redo: { get() { return this.undoHistory.redo; }, set(v) { this.undoHistory.replace(null, v); }, configurable: true },
+    undoBytes: { get() { return this.undoHistory.bytes; }, configurable: true },
+    undoTrimmed: { get() { return this.undoHistory.trimmed; }, configurable: true },
+    maxUndo: { get() { return this.undoHistory.maxSteps; }, set(v) { this.undoHistory.maxSteps = v; }, configurable: true },
+    maxUndoBytes: { get() { return this.undoHistory.maxBytes; }, set(v) { this.undoHistory.maxBytes = v; }, configurable: true },
+    historyGen: { get() { return this.undoHistory.gen; }, set(v) { this.undoHistory.gen = v; }, configurable: true },
+});
+
 installParts(InpaintEditor, [PanelsPart, LayersPart, HistoryPanelPart, TextPart, TipsPart, HealPart, LiquifyPart, ShapePart, SelectPart, StackPart, SegmentPart, MasksPart, GeometryPart, PointerPart, DepthPart, FiltersPart, HistoryPart, PersistPart, ExportPart, OpenPart, StrokesPart, DisplayPart, CompositePart, MatchPart, DrawPart, RelightPart, ChromePart, ViewPart, RefsPart, ShadowPart, ScopePart]);
 bindDisplay(InpaintEditor);
 bindComposite(InpaintEditor);

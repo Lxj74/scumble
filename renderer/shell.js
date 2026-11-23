@@ -1491,7 +1491,7 @@ window.scumble.commands.onRequest(async ({ id, name, args, meta }) => {
                     // below any step the command pushed itself, where it would have been had it gone on first
                     const own = Math.max(0, (turnEd.undo ? turnEd.undo.length : 0) - (mark ? mark[2] : 0));
                     turnEd.pushUndoSnapshot(undoSnap);
-                    if (own > 0) { const s = turnEd.undo.pop(); turnEd.undo.splice(turnEd.undo.length - own, 0, s); turnEd.historyChanged(); }
+                    if (own > 0) { turnEd.undoHistory.moveUnder(own); turnEd.historyChanged(); }
                 } else turnEd.releaseSnapshot(undoSnap);
             } catch (err) { console.warn("assistant: the undo step could not be pushed", err); }
         }
