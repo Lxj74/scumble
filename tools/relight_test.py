@@ -1644,6 +1644,48 @@ JS = r"""
     check("u: the first render's relit layer is shown again after the second read", docU.layers.some((l) => l.id === landedId && l.visible));
     notes.u = { tbBase, tbLand, sent: uS1 && [uS1.width, uS1.height], answer: uA1 && [uA1.width, uA1.height], q1, q2, leftBaseU, leftShownU };
 
+    // without detail restoration (the review of 2026-11-16, relight-whole-full-canvas-15k-and-huge): the picture is read
+    // at the size it is sent at, the answer lands at its own size over the whole picture, and no canvas of the picture's
+    // size is made on the way (tiles; the canvas backend's own read is its whole canvas anyway)
+    {
+        await commands.run("relight", { doc: docU.id, layer: uFx.id, detail: false });
+        const made = [];
+        const ce0 = document.createElement;
+        document.createElement = function (tag, ...rest) { const el = ce0.call(this, tag, ...rest); if (String(tag).toLowerCase() === "canvas") made.push(el); return el; };
+        const nSent = uSent.length;
+        host.relightSend = async (req, token) => {
+            const image = req && req.image ? req.image.slice() : null;
+            const out = await uSend0.call(host, req, token);
+            uSent.push({ image, answer: out && out.bytes ? out.bytes.slice() : null });
+            return out;
+        };
+        let uRes3 = null;
+        try {
+            uRes3 = await commands.run("relight", { doc: docU.id, layer: uFx.id, route: "magnific", timeout: 60 });
+        } finally {
+            host.relightSend = uSend0;
+            document.createElement = ce0;
+        }
+        const L3 = uRes3 && uRes3.layer && docU.layers.find((l) => l.id === uRes3.layer.id);
+        const uS3 = uSent[nSent] && uSent[nSent].image ? await decode(new Blob([uSent[nSent].image])) : null;
+        const q3 = quadU(uS3);
+        const q3Off = q1.length === 4 && q3.length === 4 ? Math.max(...q1.map((v, i) => Math.abs(v - q3[i]))) : Infinity;
+        check("u (no detail): the picture went at 2048 x 512, the same picture as with detail (four band means within 2 levels)",
+            !!uS3 && uS3.width === 2048 && uS3.height === 512 && q3Off <= 2, { size: uS3 && [uS3.width, uS3.height], q1, q3 });
+        check("u (no detail): the answer lands at its own size (1024 x 256) over the whole picture",
+            !!L3 && L3.x === 0 && L3.y === 0 && L3.w === uW && L3.h === uH && L3.px.width === 1024 && L3.px.height === 256,
+            L3 && { x: L3.x, y: L3.y, w: L3.w, h: L3.h, pw: L3.px.width, ph: L3.px.height });
+        const big = made.filter((c) => c.width * c.height >= uW * uH).map((c) => [c.width, c.height]);
+        check("u (no detail): no canvas of the picture's size on the way (tiles)", !docU.tileMode || big.length === 0, { big, tiles: docU.tileMode, made: made.length });
+        const at3 = docU.layers.findIndex((l) => l.id === L3.id);
+        const px3 = docU.flattenToCanvas({ forRun: true, upTo: at3 + 1 }).getContext("2d").getImageData(0, 0, uW, uH).data;
+        const lr3 = bandMean(px3, uW, 10, uH - 10, 10, 400) / Math.max(1, bandMean(px3, uW, 10, uH - 10, uW - 400, uW - 10));
+        check("u (no detail): the landed layer shows the mock's light (left over 1.2 x the right)", lr3 > 1.2, lr3);
+        await docU.undoStep();
+        await docU.undoStep();
+        notes.uNoDetail = { q3, lr3, big };
+    }
+
     // Clean up docU and restore settings/keys
     await commands.run("close_document", { doc: docU.id, force: true });
     await window.scumble.settings.set({ magnific: prevSettings.magnific || {} });
@@ -2487,11 +2529,12 @@ async def run_cdp(cdp, doc_path, mock, scratch_dir=None):
         print("[FAIL] no result from JS evaluate")
         return False
     fails = val.get("fails", [])
-    # case u from the mock's side: the render and the second render each sent the picture at 2048 x 512
+    # case u from the mock's side: the render, the second render and the one without detail each sent the picture at
+    # 2048 x 512
     sent = [[p.get("dims") for p in (c.get("pictures") or []) if p.get("field") == "image"]
             for c in mock.all_calls() if c.get("method") == "POST" and c.get("path", "").split("?")[0] == "/v1/ai/image-relight"]
-    if sent != [[[2048, 512]], [[2048, 512]]]:
-        fails.append(f"u: the mock's record of relight requests: {sent} (expected two, each picture 2048 x 512)")
+    if sent != [[[2048, 512]], [[2048, 512]], [[2048, 512]]]:
+        fails.append(f"u: the mock's record of relight requests: {sent} (expected three, each picture 2048 x 512)")
     for f in fails:
         print(f"[FAIL] {f}")
     if val.get("notes"):

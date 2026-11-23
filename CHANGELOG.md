@@ -31,6 +31,9 @@ the section for its version; `docs/` and the commit history hold the technical d
     on a large picture wraps at once and round its own middle, instead of freezing the window. An empty layer is
     refused, and a wrap that would cover more than 36 megapixels of the picture says so instead of running out of
     memory.
+  - *Relight whole picture* with *Detail from original* off reads the picture at the size it is sent at and lands the
+    answer at its own size over the whole picture. On a very large picture it no longer builds two copies at full
+    size on the way (about 1.8 GB at 15000 x 10000) and no longer freezes the window for seconds.
 
 ## 0.1.59 - 2026-11-20
 

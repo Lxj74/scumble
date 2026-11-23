@@ -82,13 +82,39 @@ export const HostRelightPart = {
             // the relight layer and the pixel layers of its earlier runs are left out of the read (`shown` answers false
             // for them) without a write to their `visible`: an undo step pushed or an eye clicked during the read keeps
             // the layers as they are (item 77, inpaint_relightstate.js)
+            const longSide = Math.max(W, H);
+            // one scale for both sides: down to 2048 on the long side, up to 256 on the short one (a small picture)
+            const scaleFactor = Math.max(Math.min(1.0, 2048 / longSide), 256 / Math.min(W, H));
+            const wSend = Math.min(2048, Math.round(W * scaleFactor));
+            const hSend = Math.min(2048, Math.round(H * scaleFactor));
+            // without detail restoration nothing of the picture is needed at its own size: it is read at the size it is sent
+            // at, and the answer lands at its own size over the whole picture (a scaled layer keeps its pixels the same way).
+            // Before, a 15000 x 10000 picture was encoded whole, decoded into a canvas of its size and the answer drawn into
+            // another (1.8 GB, seconds on the window; the review of 2026-11-16, relight-whole-full-canvas-15k-and-huge)
+            const useDetail = (layer.params || {}).detail !== false;
+            const lean = !useDetail && (wSend !== W || hSend !== H);
+
             const showAgain = editor.relightState.hide([layer.id, ...editor.layers.filter((l) => l.relightOf && l.relightOf === layer.id).map((l) => l.id)]);
             // the hidden layers change the composite: a filter cached at this version above them still holds their pixels
             editor.uploaded.baseHash = null;
             let picBytes = null;
             let cFull = null;
+            let cSend = null;
             try {
-                const enc = await editor.encodeComposite({ forRun: true, upTo });
+                if (lean) {
+                    const smp = await editor.sampleRegionSettled("image", [0, 0, W, H], scaleFactor, { forRun: true, upTo });
+                    cSend = smp;
+                    if (smp.width !== wSend || smp.height !== hSend) {
+                        cSend = document.createElement("canvas");
+                        cSend.width = wSend; cSend.height = hSend;
+                        const sx = cSend.getContext("2d");
+                        sx.imageSmoothingEnabled = true;
+                        sx.imageSmoothingQuality = "high";
+                        sx.drawImage(smp, 0, 0, wSend, hSend);
+                    }
+                    picBytes = await canvasBytes(cSend);
+                }
+                const enc = lean ? null : await editor.encodeComposite({ forRun: true, upTo });
                 if (enc) {
                     picBytes = new Uint8Array(await enc.blob.arrayBuffer());
                     const bmp = await createImageBitmap(enc.blob);
@@ -96,7 +122,7 @@ export const HostRelightPart = {
                     cFull.width = W; cFull.height = H;
                     cFull.getContext("2d").drawImage(bmp, 0, 0);
                     bmp.close();
-                } else {
+                } else if (!lean) {
                     cFull = editor.flattenToCanvas({ forRun: true, upTo });
                     picBytes = await canvasBytes(cFull);
                 }
@@ -105,14 +131,8 @@ export const HostRelightPart = {
                 editor.uploaded.baseHash = null;   // and back: what was cached while they were hidden is stale again
             }
 
-            const longSide = Math.max(W, H);
-            // one scale for both sides: down to 2048 on the long side, up to 256 on the short one (a small picture)
-            const scaleFactor = Math.max(Math.min(1.0, 2048 / longSide), 256 / Math.min(W, H));
-            const wSend = Math.min(2048, Math.round(W * scaleFactor));
-            const hSend = Math.min(2048, Math.round(H * scaleFactor));
-
-            let cSend = cFull;
-            if (wSend !== W || hSend !== H) {
+            if (!lean) cSend = cFull;
+            if (!lean && (wSend !== W || hSend !== H)) {
                 cSend = document.createElement("canvas");
                 cSend.width = wSend; cSend.height = hSend;
                 const sx = cSend.getContext("2d");
@@ -262,7 +282,6 @@ export const HostRelightPart = {
             const img = await bytesToImage(out.bytes, out.mime);
             const wAns = img.naturalWidth || img.width, hAns = img.naturalHeight || img.height;
 
-            const useDetail = p.detail !== false;
             let finCanvas = null;
             if (useDetail) {
                 editor.setStatus(`${L}: transferring lighting and restoring original details ...`);
@@ -314,13 +333,18 @@ export const HostRelightPart = {
                 finCanvas.width = W; finCanvas.height = H;
                 const finImgData = new ImageData(new Uint8ClampedArray(resBytes.buffer, resBytes.byteOffset, resBytes.byteLength), W, H);
                 finCanvas.getContext("2d").putImageData(finImgData, 0, 0);
-            } else {
+            } else if (!lean) {
                 finCanvas = document.createElement("canvas");
                 finCanvas.width = W; finCanvas.height = H;
                 const fx = finCanvas.getContext("2d");
                 fx.imageSmoothingEnabled = true;
                 fx.imageSmoothingQuality = "high";
                 fx.drawImage(img, 0, 0, W, H);
+            } else {
+                // the answer at its own size: the layer spans the picture (x 0, y 0, w W, h H) with these pixels
+                finCanvas = document.createElement("canvas");
+                finCanvas.width = wAns; finCanvas.height = hAns;
+                finCanvas.getContext("2d").drawImage(img, 0, 0);
             }
 
             let ref = null;
