@@ -42,7 +42,7 @@ FILES = [
     "inpaint_compositor.js", "inpaint_brushes.js", "inpaint_pixels.js", "inpaint_resample.js", "inpaint_tiles.js", "inpaint_arena.js", "inpaint_pool.js", "inpaint_png.js", "inpaint_bands.js", "inpaint_boxstack.js", "inpaint_stroke.js", "inpaint_tippicker.js", "inpaint_remove.js", "inpaint_liquify.js",
     "inpaint_jobs.js", "inpaint_encode.js", "inpaint_upload.js", "inpaint_modal.js", "inpaint_layered.js", "inpaint_tiff.js", "inpaint_theme.js", "inpaint_depth.js", "inpaint_surface.js", "inpaint_surfacefx.js", "inpaint_wrap.js", "inpaint_shadow.js", "inpaint_edges.js", "inpaint_depthfx.js", "inpaint_haze.js", "inpaint_grade.js", "inpaint_wheels.js", "inpaint_adjustments.js", "inpaint_lensblur.js", "inpaint_relight.js", "edgefit.js",
     "reftokens.js", "prompt_field.js", "blend_modes.js", "inpaint_status.js", "inpaint_progress.js", "inpaint_sizelimit.js", "inpaint_areas.js", "inpaint_parts.js",
-    "inpaint_consts.js", "inpaint_orient.js", "inpaint_shaders.js", "inpaint_dom.js", "inpaint_mesh.js", "inpaint_backends.js", "inpaint_style.js", "inpaint_strokebuf.js", "inpaint_load.js",
+    "inpaint_consts.js", "inpaint_orient.js", "inpaint_shaders.js", "inpaint_dom.js", "inpaint_mesh.js", "inpaint_meshwarp.js", "inpaint_backends.js", "inpaint_style.js", "inpaint_strokebuf.js", "inpaint_load.js",
     "inpaint_ed_tips.js", "inpaint_ed_heal.js", "inpaint_ed_liquify.js", "inpaint_ed_shape.js",
     "inpaint_ed_select.js", "inpaint_ed_stack.js", "inpaint_ed_segment.js", "inpaint_ed_masks.js",
     "inpaint_ed_geometry.js", "inpaint_ed_pointer.js",

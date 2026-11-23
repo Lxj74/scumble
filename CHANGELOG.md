@@ -23,6 +23,10 @@ the section for its version; `docs/` and the commit history hold the technical d
     From box's source follows its reference layer when the new picture places that layer again (both routes).
   - Deep paint: a soft depth, brightness or colour limit over transparent pixels no longer darkens the paint at its
     edge, and *Wrap* with the depth points no longer tears a pattern at an object's outline against the sky.
+  - *Distort* and *Warp* no longer bake a grid of darker lines into a half-transparent layer (a soft brush stroke, a
+    feathered cutout, smooth text edges): every pixel of the result is now made once. The preview shows that same
+    result as soon as you let go of a handle. While you drag, the quick preview still draws in pieces, but a layer
+    below full opacity or with a blend mode no longer shows their seams on its solid parts.
 
 ## 0.1.59 - 2026-11-20
 

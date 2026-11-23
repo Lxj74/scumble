@@ -4,13 +4,14 @@ import { host } from "./host.js";
 import { FILTERS, scaleFilterParams } from "./inpaint_filters.js";
 import { renderText } from "./inpaint_text.js";
 import { uploadCanvas } from "./inpaint_upload.js";
-import { XF_IDENTITY, pixelMap, xfApply, xfBox, xfInv, xfMul, xfScale, xfTranslate } from "./inpaint_resample.js";
+import { XF_IDENTITY, canvasRoundTrip, pixelMap, xfApply, xfBox, xfInv, xfMul, xfScale, xfTranslate } from "./inpaint_resample.js";
 import { fitLayerRGBA, workScale } from "./edgefit.js";
 import { failKind } from "./inpaint_status.js";
 import { CANVAS_MAX_SIDE, canvasSizeRefusal } from "./inpaint_sizelimit.js";
 import { DOC_TURN_LABELS, HANDLE_PX, MASK_RGB, makeCanvas } from "./inpaint_consts.js";
 import { autoCropFrame, boxOnPixels, composeTextOrient, frameInside, normDeg, orientChain, orientIsUp, orientOfXf, orientOps, placeXf, snapNum, snapXf, spinText, straightenXf, textTotalAngle, turnRect, turnSize, validXf, xfIsIdentity, xfOfOp } from "./inpaint_orient.js";
-import { drawMesh, homography } from "./inpaint_mesh.js";
+import { homography } from "./inpaint_mesh.js";
+import { meshWarp } from "./inpaint_meshwarp.js";
 
 /** A filter layer whose own pixels are an input (Deep paint): its pixels follow every change of the picture's geometry. */
 function ownPx(l) { return !!(l && l.kind === "filter" && FILTERS[l.filter] && FILTERS[l.filter].ownPixels); }
@@ -56,6 +57,7 @@ export class GeometryPart {
 
     cancelPending() {
         this.pending = null;
+        this.meshScratch = null;
         this.updateSubbar();
         this.draw();
     }
@@ -86,6 +88,77 @@ export class GeometryPart {
             ];
         }
         return [l.x + u * l.w, l.y + v * l.h];
+    }
+
+    /** The box (whole image units) the pending shape's mesh points span. */
+    pendingBox(p, n) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
+            const [X, Y] = this.pendingDst(p, i / n, j / n);
+            minX = Math.min(minX, X); minY = Math.min(minY, Y); maxX = Math.max(maxX, X); maxY = Math.max(maxY, Y);
+        }
+        minX = Math.floor(minX); minY = Math.floor(minY); maxX = Math.ceil(maxX); maxY = Math.ceil(maxY);
+        return { minX, minY, bw: Math.max(1, maxX - minX), bh: Math.max(1, maxY - minY) };
+    }
+
+    /** What a distort / warp bake depends on: the shape, the layer's pixels and its mask. */
+    pendingBakeKey(p) {
+        const l = p.layer;
+        return [p.mode, p.n || 0, JSON.stringify(p.points), l.w, l.h, l.px ? l.px.version : -1, l.maskPx ? l.maskPx.version : -1, this.liveMask(l) ? 1 : 0].join("|");
+    }
+
+    /**
+     * The pending distort or warp baked by backward mapping (inpaint_meshwarp.js: every pixel written once, so a
+     * half-transparent pixel keeps its alpha on the mesh's edges; the review of 2026-11-16), at the layer's own
+     * resolution. `data` is the source's ImageData (the layer's pixels, with a live mask through it for a preview).
+     */
+    pendingBake(p, data) {
+        const n = this.pendingSubdivisions(p, true), l = p.layer;
+        const box = this.pendingBox(p, n);
+        const W = data.width, H = data.height;
+        const res = Math.max(W / l.w, H / l.h, 1);
+        const ow = Math.round(box.bw * res), oh = Math.round(box.bh * res);
+        const pts = [];
+        for (let j = 0; j <= n; j++) {
+            const row = [];
+            for (let i = 0; i <= n; i++) { const [X, Y] = this.pendingDst(p, i / n, j / n); row.push([(X - box.minX) * res, (Y - box.minY) * res]); }
+            pts.push(row);
+        }
+        const bytes = meshWarp(data.data, W, H, pts, n, n, ow, oh, canvasRoundTrip());
+        return { ...box, res, img: new ImageData(bytes, ow, oh), key: this.pendingBakeKey(p), px: l.px };
+    }
+
+    /**
+     * The preview of a pending distort / warp while no handle is held: the bake as a canvas once it is made, null until
+     * then (a bake for the current shape is made after this frame, and the view drawn again with it).
+     */
+    pendingPreview(p) {
+        const key = this.pendingBakeKey(p);
+        if (p.bake && p.bake.key === key && p.bake.canvas) return p.bake;
+        if (p.bakeWanted === key) return null;
+        p.bakeWanted = key;
+        setTimeout(() => {
+            if (this.pending !== p || this.pointer || this.pendingBakeKey(p) !== key) { if (p.bakeWanted === key) p.bakeWanted = null; return; }
+            try {
+                const l = p.layer;
+                const masked = this.liveMask(l);
+                let data;
+                if (masked) { const c = this.layerPixels(l, false); data = c.getContext("2d").getImageData(0, 0, c.width, c.height); }
+                else data = l.px.readRect(0, 0, l.px.width, l.px.height);
+                const b = this.pendingBake(p, data);
+                const c = makeCanvas(b.img.width, b.img.height);
+                c.getContext("2d").putImageData(b.img, 0, 0);
+                b.canvas = c;
+                // a bake from the masked canvas is not what the commit makes (the mask is baked into the pixels first)
+                if (masked) b.px = null;
+                p.bake = b;
+            } catch (err) {
+                console.warn("Inpaint Canvas: the transform preview could not be baked", err);
+            }
+            if (p.bakeWanted === key) p.bakeWanted = null;
+            if (this.pending === p) this.draw();
+        }, 0);
+        return null;
     }
 
     pendingSubdivisions(p, fine) {
@@ -194,39 +267,39 @@ export class GeometryPart {
         if (this.liveMask(layer)) this.applyMask(layer, { silent: true, undo: false });
         else if (layer.maskPx) { layer.maskPx = null; layer.maskOff = false; layer.maskEdit = false; this.markMaskChanged(layer); }
         const n = this.pendingSubdivisions(p, true);
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) {
-            const [X, Y] = this.pendingDst(p, i / n, j / n);
-            minX = Math.min(minX, X); minY = Math.min(minY, Y); maxX = Math.max(maxX, X); maxY = Math.max(maxY, Y);
-        }
-        minX = Math.floor(minX); minY = Math.floor(minY); maxX = Math.ceil(maxX); maxY = Math.ceil(maxY);
-        const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
-        // the source once, after applyMask above replaced the pixels; the mesh draws it per triangle
-        const src = layer.px.toCanvas();
-        // Keep the layer's native resolution (pixels per image unit).
-        const res = Math.max(src.width / layer.w, src.height / layer.h, 1);
-        const out = makeCanvas(Math.round(bw * res), Math.round(bh * res));
-        const ctx = out.getContext("2d");
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        const dst = (u, v) => { const [X, Y] = this.pendingDst(p, u, v); return [(X - minX) * res, (Y - minY) * res]; };
+        const { minX, minY, bw, bh } = this.pendingBox(p, n);
+        let made;
         if (p.mode === "rotate") {
-            const [X, Y] = dst(0, 0);
+            // the source once, after applyMask above replaced the pixels
+            const src = layer.px.toCanvas();
+            // Keep the layer's native resolution (pixels per image unit).
+            const res = Math.max(src.width / layer.w, src.height / layer.h, 1);
+            const out = makeCanvas(Math.round(bw * res), Math.round(bh * res));
+            const ctx = out.getContext("2d");
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            const [X, Y] = this.pendingDst(p, 0, 0);
             ctx.save();
-            ctx.translate(X, Y);
+            ctx.translate((X - minX) * res, (Y - minY) * res);
             ctx.rotate(p.angle);
             ctx.scale(layer.w * res / src.width, layer.h * res / src.height);
             ctx.drawImage(src, 0, 0);
             ctx.restore();
+            // no state is left behind on the new pixels' context (PLAN_BCE §C1 rule 11)
+            ctx.imageSmoothingQuality = "low";
+            made = this.pixels.Layer.fromCanvas(out);
         } else {
-            drawMesh(ctx, src, dst, n, n);
+            // distort and warp by backward mapping, every pixel once (the preview's bake when it was made from these pixels)
+            const key = this.pendingBakeKey(p);
+            const b = p.bake && p.bake.key === key && p.bake.px === layer.px ? p.bake
+                : this.pendingBake(p, layer.px.readRect(0, 0, layer.px.width, layer.px.height));
+            made = this.pixels.Layer.fromImageData(b.img);
         }
-        // no state is left behind on the new pixels' context (PLAN_BCE §C1 rule 11)
-        ctx.imageSmoothingQuality = "low";
         // replaced, not written (another size; the "layerfull" undo PNG may still be encoding from the old pixels)
-        layer.px = this.pixels.Layer.fromCanvas(out);
+        layer.px = made;
         layer.x = minX; layer.y = minY; layer.w = bw; layer.h = bh;
         this.pending = null;
+        this.meshScratch = null;
         this.markLayerChanged(layer);
         this.renderLayers();
         this.updateSubbar();

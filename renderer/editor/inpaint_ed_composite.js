@@ -491,6 +491,24 @@ export class CompositePart {
         return c;
     }
 
+    /** The canvas mesh of a pending distort / warp, through a scratch when the context draws below full opacity or blends. */
+    drawPendingMesh(ctx, px, p, n) {
+        const dst = (u, v) => this.pendingDst(p, u, v);
+        if (ctx.globalAlpha >= 1 && ctx.globalCompositeOperation === "source-over") { drawMesh(ctx, px, dst, n, n); return; }
+        const box = this.pendingBox(p, n);
+        if (box.bw > 8192 || box.bh > 8192 || box.bw * box.bh > 33554432) { drawMesh(ctx, px, dst, n, n); return; }
+        let sc = this.meshScratch;
+        if (!sc || sc.width < box.bw || sc.height < box.bh) sc = this.meshScratch = makeCanvas(Math.max(box.bw, sc ? sc.width : 0), Math.max(box.bh, sc ? sc.height : 0));
+        const sx = sc.getContext("2d");
+        sx.setTransform(1, 0, 0, 1, 0, 0);
+        sx.globalAlpha = 1;
+        sx.globalCompositeOperation = "source-over";
+        sx.clearRect(0, 0, box.bw, box.bh);
+        sx.imageSmoothingEnabled = ctx.imageSmoothingEnabled;
+        drawMesh(sx, px, (u, v) => { const [X, Y] = dst(u, v); return [X - box.minX, Y - box.minY]; }, n, n);
+        ctx.drawImage(sc, 0, 0, box.bw, box.bh, box.minX, box.minY, box.bw, box.bh);
+    }
+
     drawLayer(ctx, layer, opts = {}) {
         const p = this.pending;
         if (p && p.layer === layer) {
@@ -506,7 +524,12 @@ export class CompositePart {
                 ctx.drawImage(px, -layer.w / 2, -layer.h / 2, layer.w, layer.h);
                 ctx.restore();
             } else {
-                drawMesh(ctx, px, (u, v) => this.pendingDst(p, u, v), n, n);
+                // no handle held: the bake the commit makes (every pixel once), as soon as it is made; until then, and
+                // while a handle is dragged, the canvas mesh (its triangles overlap by a hair, so they are drawn at full
+                // opacity into a scratch first and the layer's opacity and blend go on once)
+                const baked = fine ? this.pendingPreview(p) : null;
+                if (baked) ctx.drawImage(baked.canvas, baked.minX, baked.minY, baked.bw, baked.bh);
+                else this.drawPendingMesh(ctx, px, p, n);
             }
             return;
         }

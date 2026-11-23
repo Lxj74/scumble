@@ -8456,6 +8456,66 @@ try {
 } finally { await run("close_document", { doc: d.id, force: true }); }
 return out;
 """),
+    ("distort_and_warp_keep_a_half_transparent_alpha", """
+// the review of 2026-11-16 (distort-warp-mesh-seams-on-half-transparent-pixels): the bake drew the layer once per mesh
+// triangle with the clips grown by 0.7 px, so every half-transparent pixel on a mesh edge was drawn twice (alpha 102
+// became about 163) and the grid was baked in. Now every pixel is written once: no pixel of a 40 % layer comes out
+// more opaque, after a distort, a warp, and a commit that takes the preview's bake
+const d = await run("new_document");
+const ed = ednow(d.id);
+host.shell.activate(ed);
+const out = {};
+try {
+    await run("new_canvas", { width: 400, height: 300, doc: d.id });
+    const L = ed.addPaintLayer();
+    const id = L.id;
+    const lay = () => ed.layers.find((l) => l.id === id);
+    const img = new ImageData(200, 100);
+    for (let i = 0; i < img.data.length; i += 4) { img.data[i] = 200; img.data[i + 1] = 80; img.data[i + 2] = 40; img.data[i + 3] = 102; }
+    L.px.writeRect(img, 50, 50); ed.markLayerChanged(L);
+    const check = (what) => {
+        const l = lay(), r = l.px.readRect(0, 0, l.px.width, l.px.height).data;
+        let most = 0, full = 0, any = 0;
+        for (let i = 3; i < r.length; i += 4) { if (r[i]) any++; if (r[i] > most) most = r[i]; if (r[i] === 102) full++; }
+        if (most > 103 || full < 15000) throw new Error(what + ": a 40 % layer came out with alpha up to " + most + " (" + full + " of " + any + " pixels at 102)");
+        return { most, full, any };
+    };
+    ed.activeLayerId = id;
+    ed.startPending("distort");
+    ed.pending.points[1][0] += 30; ed.pending.points[2][1] += 20; ed.pending.H = null;
+    ed.applyPending();
+    out.distort = check("distort");
+    await ed.undoStep();
+    ed.activeLayerId = id;
+    ed.startPending("warp");
+    const n = ed.pending.n, mid = Math.floor(n / 2) * (n + 1) + Math.floor(n / 2);
+    ed.pending.points[mid] = [ed.pending.points[mid][0] + 17, ed.pending.points[mid][1] + 11];
+    ed.applyPending();
+    out.warp = check("warp");
+    await ed.undoStep();
+    // the preview's bake: made after the frame that asks for it, and the commit lands the same bytes
+    ed.activeLayerId = id;
+    ed.startPending("distort");
+    ed.pending.points[3][0] -= 25; ed.pending.H = null;
+    const p = ed.pending;
+    if (ed.pendingPreview(p) !== null) throw new Error("the preview had a bake before one was made");
+    await new Promise((res) => setTimeout(res, 300));
+    const b = ed.pendingPreview(p);
+    if (!b || !b.canvas || b.px !== lay().px) throw new Error("no preview bake after 300 ms");
+    const bytes = b.img.data;
+    ed.applyPending();
+    const r = lay().px.readRect(0, 0, lay().px.width, lay().px.height).data;
+    // the same bytes; the canvas backend's first read of a GPU canvas un-premultiplies a few pairs a level off
+    // (inpaint_resample.js, canvasRoundTrip), so one level is allowed there and counted
+    let diff = r.length !== bytes.length ? -1 : 0, worst = 0;
+    if (diff === 0) for (let i = 0; i < r.length; i++) if (r[i] !== bytes[i]) { diff++; worst = Math.max(worst, Math.abs(r[i] - bytes[i])); }
+    if (diff < 0 || worst > 1 || (ed.pixels.tiles && diff)) throw new Error("the commit is not the preview's bake: " + diff + " bytes differ, by up to " + worst);
+    out.bakeDiff = diff;
+    out.preview = check("the commit of the previewed distort");
+    await ed.undoStep();
+} finally { await run("close_document", { doc: d.id, force: true }); }
+return out;
+"""),
     ("smudge_clone_and_heal_read_only_their_box", """
 // PLAN_0_1_31 §4 step 2: clone and heal flattened the whole picture at every press, the smudge read the layer's whole
 // display mirror at every step and copied the base into a full-size layer. Now each reads the box under its dab through

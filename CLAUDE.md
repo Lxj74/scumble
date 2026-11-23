@@ -104,8 +104,8 @@ written down anywhere.
   bumped by a new mask, a cancelled map preview put back under its own kind, and the whole-picture relight's read
   hiding its layers without a write to their eye, CHANGELOG line), the Realism Pass status line naming the DLSS5 fork
   (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
-  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), six shoulds of item 73 (2026-11-23,
-  CHANGELOG "Fixed, from the code review"). Item 77 is done. **Next:** the release
+  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), seven shoulds of item 73 (2026-11-23,
+  CHANGELOG "Fixed, from the code review"; the seventh the distort / warp bake by backward mapping). Item 77 is done. **Next:** the release
   chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
   the user's pick from the list. `main` is 12 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
@@ -352,11 +352,17 @@ planning it. A new item gets its number and a few lines here; its research goes 
   decodes a PNG step), `local-generate-new-leaves-boxes-in-old-pixels` (a resize event on the local path; the event's new
   `layers` moves a From box's src with its re-placed reference layer, `boxes_model.js` `layerMoves`, on the API path too),
   `plain-limit-darkens-over-transparency` (premultiplied mix where the alphas differ, shader and CPU) and
-  `wrap-points-bilinear-across-mask-zero` (dropped points skipped, strict taps for the slopes). **Left, 7 shoulds:**
+  `wrap-points-bilinear-across-mask-zero` (dropped points skipped, strict taps for the slopes). Then
+  `distort-warp-mesh-seams-on-half-transparent-pixels`: `inpaint_meshwarp.js` `meshWarp` (every destination pixel
+  once, integer edge functions at 1/256 px, a ring one source pixel wide for the rim, trilinear levels from a shrink of
+  1.41, the canvas round trip), `applyPending` bakes with it, the preview shows the same bake once no handle is held
+  (`pendingPreview`, made in a timeout after the frame; the commit reuses it when made from the same `px`), the drag
+  keeps the canvas mesh but through a scratch when the layer is below full opacity or blends (`drawPendingMesh`);
+  2048 x 2048 in about 175 ms; `tools/meshwarp_test.js` (gate `meshwarp`) and the editor step
+  `distort_and_warp_keep_a_half_transparent_alpha` (the old bake gave alpha up to 220 for 102). **Left, 6 shoulds:**
   `untick-row-falls-to-comfy-default` and `fanout-setting-slot-clobbers-targets` (a fanned-out setting slot: one shared
   row or one per target is the user's call), three 15k perf ones (`relight-whole-full-canvas-15k-and-huge`,
-  `wrap-paint-layer-full-canvas-15k`, `own-pixels-mips-block-main-thread`), `distort-warp-mesh-seams-on-half-transparent-pixels`
-  (a backward-mapped mesh, medium), `flat-psd-extra-channel-as-transparency` (needs a fixture from Photoshop and one
+  `wrap-paint-layer-full-canvas-15k`, `own-pixels-mips-block-main-thread`), `flat-psd-extra-channel-as-transparency` (needs a fixture from Photoshop and one
   from another writer first). Then the 58 nice. Verify each against the code first.
 - 74: an automated tile upscaler / refiner (the user, 2026-11-18, as the answer to issue #14): the picture split into
   overlapping tiles small enough for the model to render at full detail, each refined on its own and put back
@@ -433,7 +439,7 @@ rounds: `PX_ONLY` for `tools/px_test.js`, `tools/mutation_round.py` (`docs/TESTI
 coverage"). `tools/close_app.py` closes an instance by its DevTools port
 (`SCUMBLE_CDP_PORT`). Gates: `pixels editor composite commands shape brush film glb ailabel size transparent generate log
 mcp nodecopy toapis openrouter ark recipes assistant llm export pxjobs upscale layered platform lint types help skins
-magnific oxen quit document docux metadata tiff canvasonly clip groups comfyview portable selection limit maps depth maskview edges depthfx grading masks effects mcpb blendmodes relight cloudjobs loras key areas cli helpers deeppaint wrap`, plus `docperf:<W>x<H>` (a .scumble save and open at size), `smoke` (a real Flux run; check `/queue` first, and not while the user needs
+magnific oxen quit document docux metadata tiff canvasonly clip groups comfyview portable selection limit maps depth maskview edges depthfx grading masks effects mcpb blendmodes relight cloudjobs loras key areas cli helpers deeppaint wrap meshwarp`, plus `docperf:<W>x<H>` (a .scumble save and open at size), `smoke` (a real Flux run; check `/queue` first, and not while the user needs
 ComfyUI), `perf:<W>x<H>`, `exportperf:<W>x<H>[,--filter=film.look]`, `tiffperf:<W>x<H>` (a TIFF export and open at size) and `huge:<W>x<H>` (the 30k gate; it refuses to run
 against a connected instance). `quit` and `quit:<W>x<H>` start and close their own instances (port +17): a test that
 closes the app must send WM_CLOSE, since a page's `window.close()` skips the window's close event. **`--offline` starts the instance with `--no-comfy`**: it does not connect, so no upload is
