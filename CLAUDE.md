@@ -119,8 +119,9 @@ written down anywhere.
   0.1.57 Generate the new border after an extend, layers that name themselves (Florence-2), one undo step per result,
   the scope, a frame from a video, the contact shadow, the mannequin; 0.1.58 Stay on surface, the fix of issue #15;
   0.1.59 above.
-- **GitHub:** the branches `main` and `gh-pages`; open issues #14 (item 74, the reply owed) and #8 (waits for
-  Blueforcer/ComfyUI-DLSS5-Enhancer#17, open and unreviewed on 2026-11-19); #15 closed 2026-11-19. Local only:
+- **GitHub:** the branches `main` and `gh-pages`; open issues #14 (item 74, the reply owed) and #8 (the user, 2026-11-23: the fix in our own fork,
+  "unter denrakeiw": `DenRakEiw/ComfyUI-DLSS5-Enhancer` `main` carries PR #17's commit `e4f8f84` and a README note
+  `7e672a9`; the status line names the fork from 0.1.60; the reply on #8 drafted, not posted; upstream #17 still open); #15 closed 2026-11-19. Local only:
   `demo-video` (the private demo-video commits, never pushed), `archive/k2-inflate-z`, six merged
   `worktree-agent-*` branches with their worktrees under `.claude/worktrees/`.
 - **The user's machine:** ComfyUI v0.45.2 since 2026-11-11 (flags `--windows-standalone-build --enable-cors-header

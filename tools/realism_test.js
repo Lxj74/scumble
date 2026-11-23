@@ -230,7 +230,8 @@ function nodeFitSpan(a0, a1, limit, m) {
     {
         // the pack before its fix refuses the card by name: the sentence says so instead of "not supported"
         const said = R.hint("NVIDIA RTX PRO 6000 Blackwell Workstation Edition is outside the supported RTX 30/40/50 scope.");
-        check("an older pack refusing an RTX PRO Blackwell card: the sentence names the pack's name rule", said.includes("does not recognise NVIDIA RTX PRO 6000 Blackwell Workstation Edition yet") && said.includes("compute capability"), said);
+        check("an older pack refusing an RTX PRO Blackwell card: the sentence names the pack's name rule", said.includes("does not recognise NVIDIA RTX PRO 6000 Blackwell Workstation Edition yet") && said.includes("compute capability")
+            && said.includes("git clone https://github.com/DenRakEiw/ComfyUI-DLSS5-Enhancer"), said);
         check("a GeForce RTX 2080 the pack refuses keeps the old sentence", R.hint("NVIDIA GeForce RTX 2080 is outside the supported RTX 30/40/50 scope.").includes("is not supported; it needs an RTX 30, 40 or 50 card"), "");
     }
     {

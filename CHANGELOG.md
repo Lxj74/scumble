@@ -2,6 +2,13 @@
 
 What changed in each release, for the people who use Scumble. The release on GitHub carries
 the section for its version; `docs/` and the commit history hold the technical detail.
+## Unreleased
+
+- **Realism Pass on workstation cards:** when the node pack on your ComfyUI still refuses an RTX PRO Blackwell, RTX
+  Ada or RTX A card by its name, the status line now names a fork of the pack that carries the fix
+  (github.com/DenRakEiw/ComfyUI-DLSS5-Enhancer, the change waiting upstream as its pull request #17) and how to put it
+  in place (issue #8).
+
 ## 0.1.59 - 2026-11-20
 
 - **The assistant: templates.** A task you give more than once (upscale, a detail pass on the eyes, a grade) can be

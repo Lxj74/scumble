@@ -230,7 +230,7 @@ export function hint(message) {
     // a card Scumble knows as RTX 30 or later that the pack refused: the pack reads the generation from the name and
     // does not know this one yet (workstation cards, issue #8)
     if (g && gpuGeneration(g[1]) >= 30) {
-        return `${LABEL}: the ComfyUI-DLSS5-Enhancer pack on your ComfyUI does not recognise ${g[1].trim()} yet: it reads the card's generation from its name, and this card does not carry it there. Update the pack once it decides by the card's compute capability (its GitHub page).`;
+        return `${LABEL}: the ComfyUI-DLSS5-Enhancer pack on your ComfyUI does not recognise ${g[1].trim()} yet: it reads the card's generation from its name, and this card does not carry it there. Until the pack's own fix is in, a fork with it decides by the card's compute capability: in custom_nodes, replace the pack's folder with git clone https://github.com/DenRakEiw/ComfyUI-DLSS5-Enhancer and restart ComfyUI.`;
     }
     if (g || /No supported NVIDIA RTX GPU/.test(m)) {
         return `${LABEL}: ${g ? `${g[1].trim()} is not supported` : "your ComfyUI's machine shows no supported card"}; it needs an RTX 30, 40 or 50 card.`;
