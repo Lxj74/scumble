@@ -707,7 +707,7 @@ export class GeometryPart {
                 }
                 if (t.maskPx) l.maskPx = t.maskPx;
             }
-            this.sel = sel;
+            this.selState.replace(sel);
             const A = xfOfOp(op, W, H);
             this.geometrySeq++;
             this.mapExtras(A, "turn");
@@ -732,8 +732,7 @@ export class GeometryPart {
             this.uploaded = this.makeUploaded();
             this.dropCompositeCaches();
             this.touchSource(this.sel);
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             // what was under way in the old geometry
             this.polyPoints = null; this.lassoPoints = null; this.shapePoints = null; this.shapeDrag = null;
             this.cloneSource = null; this.hover = null;
@@ -1063,7 +1062,7 @@ export class GeometryPart {
                 if (p.maskPx) l.maskPx = p.maskPx;
                 if (p.text) { l.text = p.text; if (l._textUndo) this.releaseSnapshot(l._textUndo); l._textUndo = null; }
             }
-            this.sel = sel;
+            this.selState.replace(sel);
             this.geometrySeq++;
             this.mapExtras(A, "straighten");
             // a guide is not turned by a few degrees: it stays where it was on the screen, shifted by the crop
@@ -1088,8 +1087,7 @@ export class GeometryPart {
             this.uploaded = this.makeUploaded();
             this.dropCompositeCaches();
             this.touchSource(this.sel);
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             this.polyPoints = null; this.lassoPoints = null; this.shapePoints = null; this.shapeDrag = null;
             this.cloneSource = null; this.hover = null;
             if (this.extendInputs) for (const k of Object.keys(this.extendInputs)) this.extendInputs[k].value = 0;
@@ -1403,14 +1401,13 @@ export class GeometryPart {
                 }
             }
             // a new object (the canvas undo step holds the old one): the old selection placed at -left, -top
-            this.sel = this.sel.resized(nw, nh, { x: -left, y: -top });
+            this.selState.replace(this.sel.resized(nw, nh, { x: -left, y: -top }));
             this.base = { ref, px };
             this.width = nw; this.height = nh;
             pushed = true;
             this.pushUndoSnapshot(before, { tracked: true, label: "Crop canvas" });
             this.uploaded = this.makeUploaded();
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             this.followGeometry("crop", xfTranslate(-left, -top), { width: W, height: H }, { width: nw, height: nh });
             this.renderLayers(); this.renderHistory(); this.renderInfo(); this.fitView(); this.drawThumb(); this.notifyChanged();
             storeGeometryFiles(this, "cropped");
@@ -1491,14 +1488,13 @@ export class GeometryPart {
             const sc = sel.getContext("2d");
             sc.imageSmoothingEnabled = true;
             this.sel.drawTo(sc, 0, 0, nw, nh);
-            this.sel = this.pixels.Mask.fromCanvas(sel);
+            this.selState.replace(this.pixels.Mask.fromCanvas(sel));
             this.base = { ref, px };
             this.width = nw; this.height = nh;
             pushed = true;
             this.pushUndoSnapshot(before, { tracked: true, label: base ? "Upscale image" : "Resize image" });
             this.uploaded = this.makeUploaded();
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             this.followGeometry("resize", xfScale(sx, sy), { width: W, height: H }, { width: nw, height: nh });
             this.renderLayers(); this.renderHistory(); this.renderInfo(); this.fitView(); this.drawThumb(); this.notifyChanged();
             storeGeometryFiles(this, "resized");
@@ -1687,14 +1683,13 @@ export class GeometryPart {
             this.base = { ref, px };
             this.width = nw; this.height = nh;
             // a new object (the canvas undo step holds the old one): the new border selected
-            this.sel = this.pixels.Mask.empty(nw, nh);
+            this.selState.replace(this.pixels.Mask.empty(nw, nh));
             this.sel.fill(null, "#ff0000");
             this.sel.clear([left, top, left + W, top + H]);
             pushed = true;
             this.pushUndoSnapshot(before, { tracked: true, label: "Extend canvas" });
             this.uploaded = this.makeUploaded();
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             this.followGeometry("extend", xfTranslate(left, top), { width: W, height: H }, { width: nw, height: nh });
             for (const k of Object.keys(this.extendInputs)) this.extendInputs[k].value = 0;
             this.renderHistory();

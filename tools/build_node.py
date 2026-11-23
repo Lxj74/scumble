@@ -47,7 +47,7 @@ FILES = [
     "inpaint_ed_select.js", "inpaint_ed_stack.js", "inpaint_ed_segment.js", "inpaint_ed_masks.js",
     "inpaint_ed_geometry.js", "inpaint_ed_pointer.js",
     "inpaint_ed_depth.js", "inpaint_ed_filters.js",
-    "inpaint_ed_history.js", "inpaint_history.js", "inpaint_ed_persist.js",
+    "inpaint_ed_history.js", "inpaint_history.js", "inpaint_selection.js", "inpaint_ed_persist.js",
     "inpaint_ed_export.js", "inpaint_ed_open.js", "inpaint_ed_strokes.js",
     "inpaint_ed_display.js", "inpaint_ed_composite.js", "inpaint_ed_match.js", "inpaint_ed_draw.js", "inpaint_ed_relight.js",
     "inpaint_ed_chrome.js", "inpaint_ed_view.js", "inpaint_ed_refs.js", "inpaint_ed_shadow.js",

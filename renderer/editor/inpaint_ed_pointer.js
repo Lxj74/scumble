@@ -889,10 +889,9 @@ export class PointerPart {
                 // the outline only moves: shift the known box instead of scanning the selection
                 const nb = [Math.max(0, p.origBounds[0] + mx), Math.max(0, p.origBounds[1] + my),
                     Math.min(this.width, p.origBounds[2] + mx), Math.min(this.height, p.origBounds[3] + my)];
-                this.cachedBounds = (nb[2] > nb[0] && nb[3] > nb[1]) ? nb : null;
-                this.selectionDirty = false;
+                this.selState.known((nb[2] > nb[0] && nb[3] > nb[1]) ? nb : null);
             } else {
-                this.selectionDirty = true; this.selectionLoose = false;
+                this.selState.rescan();
             }
         } else if (p.kind === "lasso") {
             this.lassoPoints.push([ix, iy]);
@@ -1063,7 +1062,7 @@ export class PointerPart {
             // a click without a drag deselects, the way the marquee tools do in Photoshop and Krita
             // the press pushed this gesture's step: the click's deselect is that step, not a second one
             if (!p.moved) { this.relabelTopSelectionStep("Deselect"); this.clearSelection({ undo: false }); return; }
-            this.markSelectionChanged(this.selectionDirty ? undefined : this.cachedBounds);
+            this.markSelectionChanged(this.selState.dirty ? undefined : this.selState.cached);
             this.setStatus("Selection outline moved.");
         } else if (p.kind === "lasso") {
             const pts = this.lassoPoints;

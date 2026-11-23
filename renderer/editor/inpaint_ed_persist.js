@@ -30,9 +30,7 @@ export class PersistPart {
         if (!this.base) return this.lastValueString || "{}";
         if (this.sel && !this.selectionEncoded) {
             if (this.width * this.height <= SYNC_ENCODE_PX) {
-                this.selectionDataUrl = this.sel.toCanvas().toDataURL("image/png");
-                this.selectionBox = null;
-                this.selectionEncoded = true;
+                this.selState.stored(this.sel, this.sel.toCanvas().toDataURL("image/png"), null, this.selState.seq);
             } else {
                 // a 100 MP toDataURL blocks the editor for seconds: encode in the background,
                 // keep the last finished PNG until it lands
@@ -324,7 +322,7 @@ export class PersistPart {
                     const blob = await (await fetch(state.selection)).blob();
                     const px = await pixelsFromPngStream(blob, this.pixels.Mask);
                     if (stale()) { px.release(); return; }
-                    if (px.width === this.width && px.height === this.height) { this.sel.release(); this.sel = px; }
+                    if (px.width === this.width && px.height === this.height) { this.sel.release(); this.selState.replace(px); }
                 } else {
                     const sel = await loadImageEl(state.selection);
                     if (stale()) return;
@@ -337,13 +335,10 @@ export class PersistPart {
                 // levels of the empty selection under the same version, and above 1 MP the bounds
                 // came from those, so a restored selection counted as none
                 this.touchSource(this.sel);
-                this.selectionDirty = true; this.selectionLoose = false;
                 // and encoded again: a getValue while the layers loaded (the app's autosave, ComfyUI
                 // serializing the graph) stored the empty selection's PNG as up to date, and every
                 // later save wrote that until the selection was changed by hand
-                this.selectionSeq++;
-                this.selectionEncoded = false;
-                this.selectionDataUrl = null;
+                this.selState.invalidate();
             }
             if (state.depth) {
                 let thumb = null;

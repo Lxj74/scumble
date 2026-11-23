@@ -53,6 +53,7 @@ import { DepthPart } from "./inpaint_ed_depth.js";
 import { FiltersPart } from "./inpaint_ed_filters.js";
 import { HistoryPart } from "./inpaint_ed_history.js";
 import { UndoHistory } from "./inpaint_history.js";
+import { SelectionState } from "./inpaint_selection.js";
 import { PersistPart } from "./inpaint_ed_persist.js";
 import { ExportPart, bindExport } from "./inpaint_ed_export.js";
 import { OpenPart, bindOpen } from "./inpaint_ed_open.js";
@@ -89,7 +90,7 @@ class InpaintEditor {
 
     set selection(canvas) {
         deprecatedPixels("editor.selection", "editor.sel");
-        this.sel = canvas ? this.pixels.Mask.fromCanvas(canvas) : null;
+        this.selState.replace(canvas ? this.pixels.Mask.fromCanvas(canvas) : null);
     }
 
     constructor(node) {
@@ -112,7 +113,10 @@ class InpaintEditor {
         this.groups = [];            // { id, name, visible, locked, collapsed, parent }: folders of layers (PLAN_0_1_31 §6.5); a layer's `group` names its innermost
         this.activeGroupId = null;   // the group whose header row was clicked (its layers are the selection)
         this._solo = null;           // { ids, visible }: the layers shown alone, and what was visible before the first solo
-        this.sel = null;             // MaskPixels WxH (red, alpha = selected); null before an image is loaded
+        // the selection: the mask (`sel`, MaskPixels WxH, red, alpha = selected; null before an image is loaded), its
+        // bounds cache, change counter, saved PNG and range run (inpaint_selection.js; item 77). The old field names
+        // forward to it, below
+        this.selState = new SelectionState({ scan: (within) => (within ? this.scanBoundsIn(within) : this.selectionBounds()) });
         this._relightPending = new Set();
         this._relightMarches = 0;    // relight_shadow marches in flight over all layers (`relightMarching`, the K0b harness)
         this.history = [];           // { key, ref, x, y, w, h, prompt, layerId, thumb }
@@ -185,10 +189,6 @@ class InpaintEditor {
         // generation counter (inpaint_history.js; item 77). The fields of the same names forward to it, below
         this.undoHistory = new UndoHistory({ maxSteps: MAX_UNDO, maxBytes: MAX_UNDO_BYTES, release: (s) => this.releaseSnapshot(s) });
         this.snapshots = [];            // named snapshots: [{ name, at, snap }] (turn snapshots, tiles only; not saved)
-        this.selectionDirty = true;
-        this.selectionLoose = false;   // cachedBounds is a superset of the selection, made exact on the next getBounds()
-        this.selectionDataUrl = null;
-        this.cachedBounds = null;
         this.compositeVersion = 0;      // bumped whenever the composite changes (filter caches key on it)
         this.pixelVersion = 0;          // bumped whenever a source canvas changed (the scene cache keys on it)
         this.pyramids = new WeakMap();  // source canvas -> cached downscaled levels for drawing
@@ -201,8 +201,6 @@ class InpaintEditor {
         this.viewCanvas = null;         // the visible region, composited at screen resolution
         this.viewPass = null;           // {x, y, w, h, sx, sy} while a region is being composited
         this.flatCache = null;          // {version, key, canvas} for eyedropper / clone / bucket / wand
-        this.selectionEncoded = false;  // the selection PNG in selectionDataUrl is up to date
-        this.selectionSeq = 0;
         this.uploaded = this.makeUploaded();
         this.filterCounter = 0;
         this.filterPreview = null;      // id of the filter layer whose slider is being dragged (low-res preview)
@@ -227,7 +225,6 @@ class InpaintEditor {
         this.hoverObjectId = 0;
         this.hoverObjectCanvas = null;
         this.depthPending = null;
-        this.rangePending = null;
         this.showDepthMap = false;
         this.maps = {};
         this.mapsVersion = 0;
@@ -1349,9 +1346,9 @@ class InpaintEditor {
 
     /** Encode the selection PNG for getValue off the main thread and save again when it lands. */
     encodeSelectionSoon() {
-        if (this._selEncoding) return;
-        this._selEncoding = true;
-        const seq = this.selectionSeq;
+        const s = this.selState;
+        if (!s.encodeStart()) return;
+        const seq = s.seq;
         const sel = this.sel;   // a replaced selection is a new object: its PNG is not stored
         // E5: on tiles the PNG holds the box the selection's tiles cover (`selectionBox` says where it goes), read from the
         // tiles; a box too large for a canvas (an inverted selection of a huge document) is the whole mask written in
@@ -1361,9 +1358,8 @@ class InpaintEditor {
         try {
             const ext = isTilePixels(sel) ? sel.bounds() : null;
             if (isTilePixels(sel) && !ext) {
-                this._selEncoding = false;
-                this.selectionDataUrl = null; this.selectionBox = null;
-                if (seq === this.selectionSeq) this.selectionEncoded = true;
+                s.encodeEnd();
+                s.stored(sel, null, null, seq);
                 return;
             }
             if (ext && (ext[2] - ext[0]) * (ext[3] - ext[1]) <= SEL_BOX_MAX_PX) {
@@ -1378,7 +1374,7 @@ class InpaintEditor {
                 blobOf = canvasToBlob(sel.toCanvas());
             }
         } catch (err) {
-            this._selEncoding = false;
+            s.encodeEnd();
             console.warn("Inpaint Canvas: selection encode failed", err);
             return;
         }
@@ -1390,18 +1386,12 @@ class InpaintEditor {
                 r.readAsDataURL(blob);
             }))
             .then((url) => {
-                this._selEncoding = false;
-                if (sel !== this.sel) return;
-                this.selectionDataUrl = url;
-                this.selectionBox = box;
-                if (seq === this.selectionSeq) {
-                    this.selectionEncoded = true;
-                    this.notifyChanged();   // save again, now with the fresh selection
-                } else {
-                    this.encodeSelectionSoon();
-                }
+                s.encodeEnd();
+                const kept = s.stored(sel, url, box, seq);   // "dropped": a replaced selection is not stored
+                if (kept === "current") this.notifyChanged();   // save again, now with the fresh selection
+                else if (kept === "stale") this.encodeSelectionSoon();
             })
-            .catch((err) => { this._selEncoding = false; console.warn("Inpaint Canvas: selection encode failed", err); });
+            .catch((err) => { s.encodeEnd(); console.warn("Inpaint Canvas: selection encode failed", err); });
     }
 
     /**
@@ -1623,6 +1613,21 @@ Object.defineProperties(InpaintEditor.prototype, {
     maxUndo: { get() { return this.undoHistory.maxSteps; }, set(v) { this.undoHistory.maxSteps = v; }, configurable: true },
     maxUndoBytes: { get() { return this.undoHistory.maxBytes; }, set(v) { this.undoHistory.maxBytes = v; }, configurable: true },
     historyGen: { get() { return this.undoHistory.gen; }, set(v) { this.undoHistory.gen = v; }, configurable: true },
+});
+// The selection's fields under their old names (item 77 step 2; `selection` is the deprecated canvas accessor above):
+// read by many parts. Only `selState` writes them; `sel`'s setter replaces the mask (the deprecated `selection` setter
+// and tests), the setters of the bounds flags, the counter and the PNG are for tests that set them.
+Object.defineProperties(InpaintEditor.prototype, {
+    sel: { get() { return this.selState.mask; }, set(v) { this.selState.replace(v); }, configurable: true },
+    cachedBounds: { get() { return this.selState.cached; }, configurable: true },
+    selectionDirty: { get() { return this.selState.dirty; }, set(v) { this.selState.dirty = v; }, configurable: true },
+    selectionLoose: { get() { return this.selState.loose; }, set(v) { this.selState.loose = v; }, configurable: true },
+    selectionSeq: { get() { return this.selState.seq; }, set(v) { this.selState.seq = v; }, configurable: true },
+    selectionDataUrl: { get() { return this.selState.dataUrl; }, set(v) { this.selState.dataUrl = v; }, configurable: true },
+    selectionEncoded: { get() { return this.selState.encoded; }, set(v) { this.selState.encoded = v; }, configurable: true },
+    selectionBox: { get() { return this.selState.box; }, configurable: true },
+    _selEncoding: { get() { return this.selState.encoding; }, configurable: true },
+    rangePending: { get() { return this.selState.range; }, configurable: true },
 });
 
 installParts(InpaintEditor, [PanelsPart, LayersPart, HistoryPanelPart, TextPart, TipsPart, HealPart, LiquifyPart, ShapePart, SelectPart, StackPart, SegmentPart, MasksPart, GeometryPart, PointerPart, DepthPart, FiltersPart, HistoryPart, PersistPart, ExportPart, OpenPart, StrokesPart, DisplayPart, CompositePart, MatchPart, DrawPart, RelightPart, ChromePart, ViewPart, RefsPart, ShadowPart, ScopePart]);

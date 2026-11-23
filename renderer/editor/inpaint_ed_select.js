@@ -79,7 +79,7 @@ export class SelectPart {
         }
 
         const pendingRecord = { group, seq, snap, limit, mode };
-        this.rangePending = pendingRecord;
+        this.selState.beginRange(pendingRecord);
 
         // rangeWeight already honours limit.invert; the job inverts once more only for intersect, which
         // subtracts the complement (the same rule as the logit path below).
@@ -602,8 +602,7 @@ export class SelectPart {
                 tiles: totalTiles,
             };
         } catch (err) {
-            if (this.rangePending === pendingRecord) {
-                this.rangePending = null;
+            if (this.selState.endRange(pendingRecord)) {
                 const popped = this.takeUndoEntry(snap);
                 if (popped) {
                     this.applySnapshot(popped);
@@ -619,9 +618,7 @@ export class SelectPart {
                 try { held.release(); } catch (_) {}
                 held = null;
             }
-            if (this.rangePending === pendingRecord) {
-                this.rangePending = null;
-            }
+            this.selState.endRange(pendingRecord);
         }
     }
 
@@ -651,9 +648,8 @@ export class SelectPart {
     }
 
     cancelRange() {
-        if (!this.rangePending) return false;
-        const pending = this.rangePending;
-        this.rangePending = null;
+        const pending = this.selState.takeRange();
+        if (!pending) return false;
         try {
             editorPool().cancel(pending.group);
         } catch {}
@@ -1512,17 +1508,7 @@ export class SelectPart {
      * coordinates): the display levels are refreshed there instead of being rebuilt.
      */
     markSelectionChanged(bounds, rect) {
-        if (bounds === undefined) {
-            this.selectionDirty = true; this.selectionLoose = false;
-        } else if (bounds && bounds.within) {
-            this.cachedBounds = bounds.within;
-            this.selectionDirty = true; this.selectionLoose = true;
-        } else {
-            this.cachedBounds = bounds;
-            this.selectionDirty = false; this.selectionLoose = false;
-        }
-        this.selectionSeq++;
-        this.selectionEncoded = false;
+        this.selState.changed(bounds);
         if (rect) this.touchSourceRect(this.sel, rect[0], rect[1], rect[2], rect[3]);
         else this.touchSource(this.sel);
         this.uploaded.maskHash = null;

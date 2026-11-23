@@ -86,6 +86,34 @@ top step) onto `history`, and then dropping the accessors.
 
 Each gets its inventory (who writes its fields from outside) at the start of its session, as step 1 has above.
 
+**The selection, inventory (read 2026-11-23).** Writers outside `inpaint_ed_select.js`: the constructor
+(`inpaint_canvas.js`, the first values, and the deprecated `selection` setter), `encodeSelectionSoon`
+(`inpaint_canvas.js`, the PNG and `_selEncoding`), `getBounds` / `boundsAfter` (`inpaint_ed_export.js`), the turn,
+straighten, crop, resize and extend (`inpaint_ed_geometry.js`, five times "a new mask, then the four flags reset"),
+`applySnapshot`'s two restores (`inpaint_ed_history.js`), the two new-document paths (`inpaint_ed_histpanel.js`,
+`sel = null`), `setBasePixels` (`inpaint_ed_open.js`), `getValue`'s sync PNG and the restore of a saved selection
+(`inpaint_ed_persist.js`), the outline drag (`inpaint_ed_pointer.js`, the known box). Inside the select part:
+`markSelectionChanged` and the range run (`rangePending`). Tests set `selectionSeq`, `selectionDirty`,
+`selectionLoose`, `selectionEncoded`, `selectionDataUrl` by hand; nothing in the node's own files or the plugins
+writes them.
+
+**As built (2026-11-23).** `renderer/editor/inpaint_selection.js`, class `SelectionState`, `// @ts-check` and in
+`tsconfig.check.json`; `this.selState` (the name `selection` is the deprecated canvas accessor) made in the editor's
+constructor with the editor's bounds scan as a callback (`scanBoundsIn` inside a known superset, `selectionBounds`
+otherwise). Its fields: `mask`, `cached`, `dirty`, `loose`, `seq`, `dataUrl`, `box`, `encoded`, `encoding`, `range`.
+Its interface: `replace(mask)` (a new mask object; the old one stays the caller's), `invalidate()`, `changed(bounds)`
+(the state half of `markSelectionChanged`), `known(box)` / `rescan()` (the outline drag), `bounds()`,
+`knownBounds()`, `encodeStart` / `encodeEnd` / `stored(mask, url, box, seq)` ("current", "stale", "dropped"),
+`beginRange` / `endRange` / `takeRange`. The old names forward through accessors on `InpaintEditor.prototype`:
+`sel` (its setter is `replace`), `cachedBounds`, `selectionBox`, `_selEncoding`, `rangePending` read only;
+`selectionDirty`, `selectionLoose`, `selectionSeq`, `selectionDataUrl`, `selectionEncoded` with setters for tests.
+No file outside `inpaint_selection.js` writes them (`git grep` for `.sel =`, `.selectionSeq++` and the rest).
+**One change of behaviour, on purpose:** `replace` and `invalidate` bump `seq` (before, a new mask from a turn, a crop,
+an undo or a new picture kept the counter), so whatever keys on the counter alone (stitch's bounds cache, the key
+dialog's hint, *Each area*'s signature) sees the change, and a grow / feather / invert answer that comes back after a
+new picture is dropped as stale. `tools/selection_state_test.js` (plain Node, 34 checks) tests the object alone.
+Left for later, as optional: moving the many reads of `ed.sel` onto `selState.mask` and dropping the accessors.
+
 ## Step 3: types alongside
 
 - `// @ts-check` on each module of steps 1 and 2 as it is made.

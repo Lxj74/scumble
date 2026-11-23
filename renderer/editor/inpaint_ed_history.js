@@ -703,12 +703,11 @@ export class HistoryPart {
             this.activeLayerId = this.layers.some((l) => l.id === snap.activeLayerId) ? snap.activeLayerId : null;
             const sel = snap.selPx || this.pixels.Mask.empty(this.width, this.height);
             snap.selPx = null;
-            this.sel = sel;
+            this.selState.replace(sel);
             this.touchSource(sel);
             this.uploaded = this.makeUploaded();
             this.dropCompositeCaches();
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             if (resized) this.fitView();   // a snapshot from before a quarter turn or a crop
             this.renderSelectionList();
             // what no undo step holds: the fields set_prompt, set_generation, set_crop and
@@ -760,12 +759,11 @@ export class HistoryPart {
                 sel = this.pixels.Mask.empty(this.width, this.height);
                 if (selImg) sel.drawInto(null, (ctx) => ctx.drawImage(selImg, 0, 0));
             }
-            this.sel = sel;
+            this.selState.replace(sel);
             this.touchSource(sel);
             this.uploaded = this.makeUploaded();
             this.dropCompositeCaches();
-            this.selectionDirty = true; this.selectionLoose = false;
-            this.selectionDataUrl = null; this.selectionEncoded = false;
+            this.selState.invalidate();
             if (this.extendInputs) for (const k of Object.keys(this.extendInputs)) this.extendInputs[k].value = 0;
             this.refsMutated();
             this.renderLayers();
