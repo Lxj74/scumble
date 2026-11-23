@@ -23,6 +23,9 @@ import { wrapBox, wrapDecal, wrapGrow } from "./inpaint_wrap.js";
 import { surfaceRegion } from "./inpaint_surface.js";
 import { xfInv } from "./inpaint_resample.js";
 
+/** The most picture pixels one wrap covers (its box): about 24 bytes each are live at once. */
+const WRAP_MAX_PX = 36e6;
+
 export class FiltersPart {
     /**
      * Draw in a blend mode Canvas 2D has no operation for (linear light, PLAN_0_1_31 §4 step 8; PLAN_NIK9's other modes
@@ -457,10 +460,20 @@ export class FiltersPart {
      * reach it, null outside the picture. The selection of this moment limits it, as a fresh wrap.
      */
     wrapPixels(src, angle, { useSelection = true } = {}) {
-        const place = { cx: src.x + src.w / 2, cy: src.y + src.h / 2, w: src.w, h: src.h, angle };
+        // the painted part of the layer, not its box: a paint layer is the whole canvas, and wrapping that read and
+        // unwrapped the whole picture round its middle (3.6 GB at 15k; the review of 2026-11-16,
+        // wrap-paint-layer-full-canvas-15k). Kept per pixel version: a live wrap asks again at every move
+        const pw = src.px.width, ph = src.px.height;
+        let pb = src.px._wrapBounds && src.px._wrapBounds.ver === (src.px.version || 0) ? src.px._wrapBounds.b : undefined;
+        if (pb === undefined) { pb = src.px.bounds(); src.px._wrapBounds = { ver: src.px.version || 0, b: pb }; }
+        if (!pb) return { error: `${src.name} has no pixels: nothing to wrap.` };
+        const ux = src.w / pw, uy = src.h / ph;
+        const place = { cx: src.x + (pb[0] + pb[2]) / 2 * ux, cy: src.y + (pb[1] + pb[3]) / 2 * uy, w: (pb[2] - pb[0]) * ux, h: (pb[3] - pb[1]) * uy, angle };
         const box = wrapBox(place, this.width, this.height, this.maps.points ? wrapGrow(this.maps.points, place.cx, place.cy) : 1);
         if (!box) return null;
         const [x0, y0, x1, y1] = box, bw = x1 - x0, bh = y1 - y0;
+        // about 24 bytes a pixel live at once (the slopes, the coordinates, the decal and the result)
+        if (bw * bh > WRAP_MAX_PX) return { error: `${src.name} would wrap over ${bw} × ${bh} px of the picture, more than wrap handles at once (${Math.round(WRAP_MAX_PX / 1e6)} MP): wrap a smaller part, or scale the layer down first.` };
         let sel = null;
         if (useSelection && this.sel && this.getBounds()) {
             const a = this.sel.readRect(x0, y0, bw, bh).data;
@@ -469,7 +482,7 @@ export class FiltersPart {
             for (let i = 0; i < sel.length; i++) { sel[i] = a[4 * i + 3]; if (sel[i]) any = true; }
             if (!any) return { error: "The selection does not reach the layer: nothing to wrap." };
         }
-        const decal = src.px.readRect(0, 0, src.px.width, src.px.height);
+        const decal = src.px.readRect(pb[0], pb[1], pb[2] - pb[0], pb[3] - pb[1]);
         return { box, place, limited: !!sel, data: wrapDecal({ map: this.maps.normals, box, decal, place, sel, points: this.maps.points || null }) };
     }
 

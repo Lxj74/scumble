@@ -27,6 +27,10 @@ the section for its version; `docs/` and the commit history hold the technical d
     feathered cutout, smooth text edges): every pixel of the result is now made once. The preview shows that same
     result as soon as you let go of a handle. While you drag, the quick preview still draws in pieces, but a layer
     below full opacity or with a blend mode no longer shows their seams on its solid parts.
+  - *Wrap onto Surface* on a paint layer takes the part you painted, not the whole canvas the layer covers: a small logo
+    on a large picture wraps at once and round its own middle, instead of freezing the window. An empty layer is
+    refused, and a wrap that would cover more than 36 megapixels of the picture says so instead of running out of
+    memory.
 
 ## 0.1.59 - 2026-11-20
 

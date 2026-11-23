@@ -723,6 +723,30 @@ JS = r"""
             check("wrap within the selection: a bake, no live link (the selection of a later moment would change it)", WS && !WS.wrap, WS && WS.wrap);
             const rf = await shell.commands.call("wrap_layer", { doc, layer: L.id });
             check("wrap_layer refuses a filter layer", !rf.ok, rf);
+            // a paint layer is the whole canvas: the wrap takes its painted part (the same decal at the same place gives
+            // the same lines) and reads only round it, not the whole picture round its middle (the review of
+            // 2026-11-16, wrap-paint-layer-full-canvas-15k); an empty one is refused
+            {
+                await shell.commands.call("select_none", { doc });
+                const P = ed.addPaintLayer();
+                P.px.writeRect(dcv.getContext("2d").getImageData(0, 0, 240, 20), X0 - 120, 300); ed.markLayerChanged(P);
+                const madeP = ed.wrapPixels(P, 0, { useSelection: false });
+                const bwP = madeP && madeP.box ? madeP.box[2] - madeP.box[0] : 0;
+                const rp = await shell.commands.call("wrap_layer", { doc, layer: P.id });
+                await settle(ed);
+                const WP = rp.ok && ed.layers.find((l) => l.id === rp.result.id);
+                const gp = WP ? lineCentres(WP.px, 310) : [];
+                check("wrap of a paint layer: the painted part only (the decal's lines span its columns 0 to 201; the box about that, not the canvas)", madeP && madeP.place.w === 201 && madeP.place.h === 20 && bwP > 200 && bwP < 320, madeP && { place: madeP.place, box: madeP.box });
+                check("wrap of a paint layer: the lines where the picture layer put them", gp.length === 6 && gp.every((g, i) => Math.abs(g - got[i]) < 0.01), { gp, got });
+                await shell.commands.call("undo", { doc });
+                await settle(ed);
+                const E = ed.addPaintLayer();
+                const re = await shell.commands.call("wrap_layer", { doc, layer: E.id });
+                check("wrap of an empty paint layer is refused", !re.ok && /has no pixels/.test(re.error || re.message || JSON.stringify(re)), re);
+                await shell.commands.call("remove_layer", { doc, layer: E.id });
+                await shell.commands.call("remove_layer", { doc, layer: P.id });
+                await settle(ed);
+            }
             await undoTo(n0);
             check("the normals back", ed.maps.normals && ed.maps.normals.w === mw);
             await shell.commands.call("remove_layer", { doc, layer: D.id });
