@@ -55,6 +55,7 @@ import { HistoryPart } from "./inpaint_ed_history.js";
 import { UndoHistory } from "./inpaint_history.js";
 import { SelectionState } from "./inpaint_selection.js";
 import { DocumentMaps } from "./inpaint_docmaps.js";
+import { RelightState } from "./inpaint_relightstate.js";
 import { PersistPart } from "./inpaint_ed_persist.js";
 import { ExportPart, bindExport } from "./inpaint_ed_export.js";
 import { OpenPart, bindOpen } from "./inpaint_ed_open.js";
@@ -118,8 +119,9 @@ class InpaintEditor {
         // bounds cache, change counter, saved PNG and range run (inpaint_selection.js; item 77). The old field names
         // forward to it, below
         this.selState = new SelectionState({ scan: (within) => (within ? this.scanBoundsIn(within) : this.selectionBounds()) });
-        this._relightPending = new Set();
-        this._relightMarches = 0;    // relight_shadow marches in flight over all layers (`relightMarching`, the K0b harness)
+        // relight's map jobs in flight, its march count and the layers a whole-picture read leaves out
+        // (inpaint_relightstate.js; item 77). `_relightPending` and `_relightMarches` forward to it, below
+        this.relightState = new RelightState();
         this.history = [];           // { key, ref, x, y, w, h, prompt, layerId, thumb }
         this.view = { scale: 1, x: 0, y: 0, angle: 0 };
         this.guides = { x: [], y: [] };
@@ -1636,6 +1638,11 @@ Object.defineProperties(InpaintEditor.prototype, {
     maps: { get() { return this.docMaps.all; }, set(v) { this.docMaps.replaceAll(v, { bump: false }); }, configurable: true },
     mapsVersion: { get() { return this.docMaps.version; }, set(v) { this.docMaps.version = v; }, configurable: true },
     _mapUndoPending: { get() { return this.docMaps.preview ? this.docMaps.preview.prev : null; }, configurable: true },
+});
+// Relight's runtime state under its old names (item 77 step 2), read only: tests and the perf harness wait on the jobs.
+Object.defineProperties(InpaintEditor.prototype, {
+    _relightPending: { get() { return this.relightState.jobs; }, configurable: true },
+    _relightMarches: { get() { return this.relightState.marches; }, configurable: true },
 });
 
 installParts(InpaintEditor, [PanelsPart, LayersPart, HistoryPanelPart, TextPart, TipsPart, HealPart, LiquifyPart, ShapePart, SelectPart, StackPart, SegmentPart, MasksPart, GeometryPart, PointerPart, DepthPart, FiltersPart, HistoryPart, PersistPart, ExportPart, OpenPart, StrokesPart, DisplayPart, CompositePart, MatchPart, DrawPart, RelightPart, ChromePart, ViewPart, RefsPart, ShadowPart, ScopePart]);

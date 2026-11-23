@@ -153,6 +153,7 @@ export class CompositePart {
     /** Whether a layer is drawn: its own eye and the eyes of every group it is in. */
     shown(l) {
         if (!l.visible) return false;
+        if (this.relightState && this.relightState.isHidden(l.id)) return false;   // left out for a read (relightWhole)
         if (!l.group) return true;
         for (const g of this.groupsOf(l.group)) if (!g.visible) return false;
         return true;

@@ -8,6 +8,9 @@ the section for its version; `docs/` and the commit history hold the technical d
   Ada or RTX A card by its name, the status line now names a fork of the pack that carries the fix
   (github.com/DenRakEiw/ComfyUI-DLSS5-Enhancer; the original has not taken the change, offered to it as its pull request
   #17) and how to put it in place (issue #8).
+- **Relight on the whole picture:** while the picture is read for the run, an edit you make meanwhile no longer records
+  the relight layer as hidden (an undo of that edit later hid it), and a layer's eye clicked during the read stays as you
+  set it. The shadow maps still being made when you undo a step now land on the layer you see.
 
 ## 0.1.59 - 2026-11-20
 

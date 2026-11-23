@@ -53,7 +53,7 @@ export class RelightPart {
             for (const l of this.layers || []) {
                 if (l.kind === "filter" && l.filter === "relight" && (l === also || this.shown(l))) this.ensureRelightMaps(l);
             }
-            const jobs = this._relightPending ? Array.from(this._relightPending) : [];
+            const jobs = this.relightState.pending();
             if (!jobs.length) return;
             await Promise.all(jobs);
         }
@@ -61,7 +61,7 @@ export class RelightPart {
 
     /** The relight_shadow marches in flight over all layers, quick and full (the K0b harness waits on it). */
     relightMarching() {
-        return this._relightMarches || 0;
+        return this.relightState.marches;
     }
 
     isRelightActive() {
@@ -341,15 +341,15 @@ export class RelightPart {
                         };
                     }
                     cache.key = nKey;
-                    this.markFilterChanged(layer, { soon: true });
+                    const live = this.relightLive(layer);   // an undo of a layers step meanwhile put a copy in its place
+                    if (live) this.markFilterChanged(live, { soon: true });
                 } catch (err) {
                     console.warn("relight_normals failed:", err);
                 } finally {
                     cache.pending.delete("n:" + nKey);
                 }
             })();
-            this._relightPending.add(p);
-            p.finally(() => this._relightPending.delete(p));
+            this.relightState.track(p);
         }
 
         // Shadow maps: a channel per light under relightVisKey, the keys pickVis reads (docs/PLAN_RELIGHT_FIXES.md F2.5)
@@ -473,7 +473,7 @@ export class RelightPart {
             if (!run) run = markStep("relight_maps", "start", { quick, lights: 0, w: targetW, h: targetH });
             run.lights++;
             cache.marching = (cache.marching || 0) + 1;
-            this._relightMarches++;
+            this.relightState.marchBegan();
             const p = (async () => {
                 try {
                     const lm = lightToMap(l, depthMap, { depth_scale: depthScale });
@@ -520,7 +520,10 @@ export class RelightPart {
                     // quick map and only over an older march: during a drag the quick map trails the pointer instead of
                     // waiting for it to stop. pickVis tells current from trailing by the keys.
                     const tv = quick ? cache.visQuick : cache.vis;
-                    const current = vKey === this.relightChannelKey(layer, chan, quick);
+                    // the layer as it is now, by id: an undo or redo of a layers step during the march put a copy (holding
+                    // the same maps) in its place, with the lights of that step
+                    const live = this.relightLive(layer);
+                    const current = vKey === this.relightChannelKey(live || layer, chan, quick);
                     markStep("relight_maps", "landed", { chan, quick, current, ms: Math.round((performance.now() - posted) * 10) / 10 });
                     if (tv && tv.w === targetW && tv.h === targetH && tv.keys[chan] !== vKey) {
                         const tickets = tv.tickets || (tv.tickets = [0, 0, 0, 0]);
@@ -531,8 +534,8 @@ export class RelightPart {
                             tv.keys[chan] = vKey;
                             tickets[chan] = current ? stamp() : ticket;
                             tv.seq = cache.seq = (cache.seq || 0) + 1;
-                            if (!quick) this.dropQuickVis(layer);
-                            this.markFilterChanged(layer, { soon: true });
+                            if (!quick) this.dropQuickVis(live && live._relight === cache ? live : layer);
+                            if (live) this.markFilterChanged(live, { soon: true });
                         }
                     }
                 } catch (err) {
@@ -540,24 +543,35 @@ export class RelightPart {
                     if (!(err && err.cancelled)) console.warn(`relight_shadow channel ${chan} failed:`, err);
                 } finally {
                     cache.marching--;
-                    this._relightMarches--;
+                    this.relightState.marchEnded();
                     if (!cache.marching) markStep("relight_maps", "idle", { quick });
                     if (!march.superseded) cache.pending.delete(pendingKey);   // a superseded one's key was freed when it was, and may be a newer march's now
                     if (fullMarches[chan] === march) fullMarches[chan] = null;
                     // the channel still lacks the key it wants now and no march for that key is on its way (a light turned
                     // off and on while its march ran, a march for a key left behind): ask for one
-                    const want = this.relightChannelKey(layer, chan, quick);
+                    const now = this.relightLive(layer);
+                    const want = now ? this.relightChannelKey(now, chan, quick) : null;
                     const tvNow = quick ? cache.visQuick : cache.vis;
                     if (want && tvNow && Array.isArray(tvNow.keys) && tvNow.keys[chan] !== want
-                        && !cache.pending.has(`v:${quick ? "q" : "f"}:${chan}:${want}`) && this.layers.includes(layer)) {
-                        this.markFilterChanged(layer, { soon: true });
+                        && !cache.pending.has(`v:${quick ? "q" : "f"}:${chan}:${want}`)) {
+                        this.markFilterChanged(now, { soon: true });
                     }
                 }
             })();
-            this._relightPending.add(p);
-            p.finally(() => this._relightPending.delete(p));
+            this.relightState.track(p);
         }
         if (!quick) this.dropQuickVis(layer);
+    }
+
+    /**
+     * The layer with `layer`'s id in the stack now, null when it is gone: a map job re-reads it after every await (an
+     * undo or redo of a layers step puts copies in place of every layer object; the copies share the maps, `_relight`).
+     * @param {any} layer
+     */
+    relightLive(layer) {
+        if (!layer) return null;
+        if (this.layers && this.layers.includes(layer)) return layer;
+        return (this.layers || []).find((x) => x.id === layer.id) || null;
     }
 
     /**

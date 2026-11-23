@@ -1508,13 +1508,30 @@ JS = r"""
         return out;
     };
 
+    // during the read the relight layer is left out of the picture without a write to its eye (item 77,
+    // inpaint_relightstate.js): what an undo step pushed meanwhile would record keeps it shown
+    const uEnc0 = docU.encodeComposite;
+    let uDuringRead = null;
+    docU.encodeComposite = async function (opts) {
+        const live = docU.layers.find((l) => l.id === uFx.id);
+        if (!uDuringRead) uDuringRead = { visible: live && live.visible, shown: live && docU.shown(live), recorded: live && docU.snapshotLayer(live).visible };
+        return uEnc0.call(this, opts);
+    };
     // Run relight command with route magnific
-    const uRes = await commands.run("relight", {
-        doc: docU.id,
-        layer: uFx.id,
-        route: "magnific",
-        timeout: 60,
-    });
+    let uRes;
+    try {
+        uRes = await commands.run("relight", {
+            doc: docU.id,
+            layer: uFx.id,
+            route: "magnific",
+            timeout: 60,
+        });
+    } finally {
+        docU.encodeComposite = uEnc0;
+    }
+    check("u: during the read the relight layer keeps its eye, is not shown, and a step records it shown",
+        !!uDuringRead && uDuringRead.visible === true && uDuringRead.shown === false && uDuringRead.recorded === true, uDuringRead);
+    check("u: after the read no layer is left hidden for it", docU.relightState.hidden.size === 0, Array.from(docU.relightState.hidden.keys()));
 
     check("u: relight command succeeded", !!uRes && uRes.route === "magnific", uRes);
     check("u: landed layer returned", !!(uRes && uRes.layer));

@@ -79,15 +79,10 @@ export const HostRelightPart = {
             editor.setStatus(`${L}: reading the picture (${W} x ${H}) ...`);
             const sig0 = readSig(upTo);
 
-            const wasVis = layer.visible;
-            layer.visible = false;
-            const hiddenRelight = [];
-            for (const l of editor.layers) {
-                if (l.relightOf && l.relightOf === layer.id && l.visible) {
-                    l.visible = false;
-                    hiddenRelight.push(l);
-                }
-            }
+            // the relight layer and the pixel layers of its earlier runs are left out of the read (`shown` answers false
+            // for them) without a write to their `visible`: an undo step pushed or an eye clicked during the read keeps
+            // the layers as they are (item 77, inpaint_relightstate.js)
+            const showAgain = editor.relightState.hide([layer.id, ...editor.layers.filter((l) => l.relightOf && l.relightOf === layer.id).map((l) => l.id)]);
             // the hidden layers change the composite: a filter cached at this version above them still holds their pixels
             editor.uploaded.baseHash = null;
             let picBytes = null;
@@ -106,11 +101,7 @@ export const HostRelightPart = {
                     picBytes = await canvasBytes(cFull);
                 }
             } finally {
-                // the live layers by id: an undo or redo of a layers step during the read put copies in their place
-                const live = (l) => editor.layers.find((x) => x.id === l.id) || null;
-                const lr = live(layer);
-                if (lr) lr.visible = wasVis;
-                for (const l of hiddenRelight) { const h = live(l); if (h) h.visible = true; }
+                showAgain();
                 editor.uploaded.baseHash = null;   // and back: what was cached while they were hidden is stale again
             }
 

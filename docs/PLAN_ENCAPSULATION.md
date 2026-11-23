@@ -134,6 +134,28 @@ kind it was previewed on (before it went back under the kind `cancelMapMeta` was
 previewed today, so nobody saw it), and a new document or an undo of a turn drops a preview in flight.
 `tools/docmaps_test.js` (plain Node, 19 checks) tests the object alone.
 
+**Relight, inventory (read 2026-11-23).** The editor's own relight fields: `_relightPending` (the map jobs) and
+`_relightMarches` (the march count), written in the constructor and in `ensureRelightMaps` alone, read by
+`relightIdle` / `relightMarching` and by tests (`relight_test.py`, `perf_test.py` wait on the set). The whole-picture
+run (`host_relight.js` `relightWhole`) hid the relight layer and the pixel layers of its earlier runs by writing
+`visible = false` and wrote the old values back by id after the read: an undo step pushed during the read recorded them
+hidden, and an eye clicked during it was overwritten. The map jobs' closures held the layer object they started with:
+after an undo of a layers step they marked the old object changed and asked the stack whether it still held it. The
+layer's map cache `_relight` stays on the layer (per layer, keyed by its inputs, shared by the copies an undo makes;
+40 test reads): it is not the document's state. Its outside writers are a deep `releaseCaches` (drops it), the
+geometry turn (drops the full shadow map) and `duplicateLayer` (a fresh copy).
+
+**As built (2026-11-23).** `renderer/editor/inpaint_relightstate.js`, class `RelightState`, `// @ts-check` and in
+`tsconfig.check.json`; `this.relightState`. Its fields: `jobs`, `marches`, `hidden` (id -> count). Its interface:
+`track(p)` (kept until settled, a rejection too), `pending()`, `marchBegan` / `marchEnded` (never below zero),
+`hide(ids)` (answers a release that may be called twice), `isHidden(id)`. `shown(l)` answers false for a layer a read
+hides; `relightWhole` hides through it and writes no `visible`. `ensureRelightMaps`'s jobs re-read the layer by id after
+their await (`relightLive`): the channel key from the live layer's lights, `markFilterChanged` on the live layer, nothing
+for a layer that is gone. The old names `_relightPending` and `_relightMarches` forward read only. **Changes, on
+purpose:** the read's hide is no write (an undo step or an eye during the read keeps the layers as they are), and a map
+job that lands after an undo marks the live copy changed (before, the old object, and the view waited for the next
+draw). `tools/relightstate_test.js` (plain Node, 14 checks) tests the object alone.
+
 ## Step 3: types alongside
 
 - `// @ts-check` on each module of steps 1 and 2 as it is made.
