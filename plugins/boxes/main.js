@@ -210,7 +210,7 @@ export function activate(scumble) {
         const boxes = boxesOf(ev.doc);
         if (!boxes.length) return;
         // new objects, never the old ones: the step's own undo puts the data back (docs/PLUGINS.md, events)
-        scumble.documents.data(ev.doc).set({ version: 1, boxes: mapBoxes(boxes, ev.m) });
+        scumble.documents.data(ev.doc).set({ version: 1, boxes: mapBoxes(boxes, ev.m, ev.layers || null) });
     });
 
     // ---- the generate hook: the document's boxes for a run that takes them ------------------------------------------

@@ -104,9 +104,10 @@ written down anywhere.
   bumped by a new mask, a cancelled map preview put back under its own kind, and the whole-picture relight's read
   hiding its layers without a write to their eye, CHANGELOG line), the Realism Pass status line naming the DLSS5 fork
   (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
-  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`). Item 77 is done. **Next:** the release
+  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), six shoulds of item 73 (2026-11-23,
+  CHANGELOG "Fixed, from the code review"). Item 77 is done. **Next:** the release
   chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
-  the user's pick from the list. `main` is 11 commits ahead of origin (nothing pushed since the move).
+  the user's pick from the list. `main` is 12 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
@@ -344,15 +345,19 @@ planning it. A new item gets its number and a few lines here; its research goes 
   in three packages, the editor's (CHANGELOG "Fixed, from the code review"); found already fixed on checking:
   `depth-map-raw-floats-in-state-json`, `range-add-nothing-matched-bounds-whole-picture`, `glb-edit-locked-kept-control-layer`
   (but the plugin `setPixels`, now done), `box-desc-unknown-or-cased-token-sent-to-api` (main's `clean` refuses since 0.1.58).
-  The gates of what they touch passed on both backends; no new test step was written for them. **Left, 13 shoulds:**
+  The gates of what they touch passed on both backends; no new test step was written for them. **2026-11-23,
+  unreleased:** six more, each with a test that fails without it (CHANGELOG "Fixed, from the code review" of
+  0.1.60): the smudge and rotate-handle clicks (`holdUndo`), `selection-from-layer-full-canvas-and-filter-wipe` (bands over
+  the layer's box), `select-range-untracked-undo-and-cancel-crash` (`selectRange` a `trackEdit`, `putBackRangeStep`
+  decodes a PNG step), `local-generate-new-leaves-boxes-in-old-pixels` (a resize event on the local path; the event's new
+  `layers` moves a From box's src with its re-placed reference layer, `boxes_model.js` `layerMoves`, on the API path too),
+  `plain-limit-darkens-over-transparency` (premultiplied mix where the alphas differ, shader and CPU) and
+  `wrap-points-bilinear-across-mask-zero` (dropped points skipped, strict taps for the slopes). **Left, 7 shoulds:**
   `untick-row-falls-to-comfy-default` and `fanout-setting-slot-clobbers-targets` (a fanned-out setting slot: one shared
-  row or one per target is the user's call), `local-generate-new-leaves-boxes-in-old-pixels`, three 15k perf ones
-  (`relight-whole-full-canvas-15k-and-huge`, `wrap-paint-layer-full-canvas-15k`, `own-pixels-mips-block-main-thread`),
-  three medium ones (`distort-warp-mesh-seams-on-half-transparent-pixels`, `select-range-untracked-undo-and-cancel-crash`
-  past its byte count, `selection-from-layer-full-canvas-and-filter-wipe`), `flat-psd-extra-channel-as-transparency`
-  (needs a fixture from Photoshop and one from another writer first), `plain-limit-darkens-over-transparency` (a
-  shader), `wrap-points-bilinear-across-mask-zero`, and the smudge and rotate clicks of `noop-steps-left-after-1b2f05d7`.
-  Then the 58 nice. Verify each against the code first.
+  row or one per target is the user's call), three 15k perf ones (`relight-whole-full-canvas-15k-and-huge`,
+  `wrap-paint-layer-full-canvas-15k`, `own-pixels-mips-block-main-thread`), `distort-warp-mesh-seams-on-half-transparent-pixels`
+  (a backward-mapped mesh, medium), `flat-psd-extra-channel-as-transparency` (needs a fixture from Photoshop and one
+  from another writer first). Then the 58 nice. Verify each against the code first.
 - 74: an automated tile upscaler / refiner (the user, 2026-11-18, as the answer to issue #14): the picture split into
   overlapping tiles small enough for the model to render at full detail, each refined on its own and put back
   together, one general prompt or one a vision model writes per tile. Pieces that exist: *Each area* (item 54),

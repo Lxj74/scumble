@@ -47,7 +47,16 @@ export class SelectPart {
      * @param {object} [opts={}]
      * @returns {Promise<{ bounds: number[] | null, seconds: number, tiles: number }>}
      */
-    async selectRange(limitIn, mode = "replace", { label = "Select by range" } = {}) {
+    /**
+     * The run as an edit an undo waits for: its step is pushed before the bands run, so a Ctrl+Z during them popped it and
+     * the bands went on writing into the selection the undo had put back (review 2026-11-16
+     * canvas-select/select-range-untracked-undo-and-cancel-crash).
+     */
+    selectRange(limitIn, mode = "replace", opts = {}) {
+        return this.trackEdit(this.selectRangeNow(limitIn, mode, opts));
+    }
+
+    async selectRangeNow(limitIn, mode = "replace", { label = "Select by range" } = {}) {
         const limit = normalizeLimit(limitIn);
         if (!limit) throw new Error("invalid limit descriptor");
         if (limit.source === "depth" && (!this.maps || !this.maps.depth)) {
@@ -604,13 +613,7 @@ export class SelectPart {
         } catch (err) {
             if (this.selState.endRange(pendingRecord)) {
                 const popped = this.takeUndoEntry(snap);
-                if (popped) {
-                    this.applySnapshot(popped);
-                    this.releaseSnapshot(popped);
-                    this.historyChanged();
-                    this.markSelectionChanged();
-                    this.draw();
-                }
+                if (popped) { try { await this.putBackRangeStep(popped); } catch (e2) { console.error(e2); } }
             }
             throw err;
         } finally {
@@ -654,19 +657,35 @@ export class SelectPart {
             editorPool().cancel(pending.group);
         } catch {}
 
+        // the run's own step, wherever it sits; one no longer in the list was released by what took it (a new picture):
+        // the document it would put back is gone, and applying a released step threw
         const popped = this.takeUndoEntry(pending.snap);
+        this.setStatus("Selection by range cancelled");
         if (popped) {
-            this.applySnapshot(popped);
-            this.releaseSnapshot(popped);
-        } else if (pending.snap) {
-            this.applySnapshot(pending.snap);
-            this.releaseSnapshot(pending.snap);
+            this.trackEdit(this.putBackRangeStep(popped).catch((err) => {
+                console.error(err);
+                this.setStatus(`Selection by range cancelled; the selection before it could not be put back: ${err && err.message ? err.message : err}`, "error");
+            }));
+        } else {
+            this.historyChanged();
+            this.markSelectionChanged();
+            this.draw();
         }
+        return true;
+    }
+
+    /**
+     * Put a range run's own step back (a cancel, a failure). A step kept as a PNG (the canvas backend above 16 MP,
+     * `snapshotSelection`) is decoded first: applied at once it threw "the step's image was not loaded". Without one it
+     * runs to the end at once (the tiles' steps hold pixels).
+     */
+    async putBackRangeStep(snap) {
+        const images = snap.url ? await this.loadSnapImages(snap) : {};
+        this.applySnapshot(snap, images);
+        this.releaseSnapshot(snap);
         this.historyChanged();
         this.markSelectionChanged();
         this.draw();
-        this.setStatus("Selection by range cancelled");
-        return true;
     }
 
     /**
@@ -1442,19 +1461,37 @@ export class SelectPart {
     selectionFromLayer() {
         const layer = this.activeLayer();
         if (!layer) { this.setStatus("Select a layer first (the base is fully opaque)."); return; }
+        // a filter layer without pixels of its own has an empty px: taking it wiped the selection and said it was taken
+        // (fillSelection / deleteSelection refuse the same; review 2026-11-16 canvas-select/selection-from-layer-full-canvas-and-filter-wipe)
+        if (layer.kind === "filter" && !this.hasOwnPixels(layer)) { this.setStatus(`${layer.name} is a filter layer: it has no pixels to take a selection from.`); return; }
         this.pushUndo({ kind: "selection", label: "Selection from layer" });
-        const tmp = makeCanvas(this.width, this.height);
-        tmp.getContext("2d").drawImage(this.layerPixels(layer), layer.x, layer.y, layer.w, layer.h);
-        const src = tmp.getContext("2d").getImageData(0, 0, this.width, this.height).data;
-        const img = new ImageData(this.width, this.height);
-        const d = img.data;
-        for (let i = 0; i < src.length; i += 4) {
-            d[i] = 255; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = src[i + 3] > 127 ? 255 : 0;
+        // the layer's box in bands, never the whole picture: three canvases and a loop over every pixel of the document cost
+        // 1.8 GB and seconds at 15,000 x 10,000 for a layer of 512 x 512, and threw above the canvas limit after the push
+        const W = this.width, H = this.height;
+        const x0 = Math.max(0, Math.floor(layer.x)), y0 = Math.max(0, Math.floor(layer.y));
+        const x1 = Math.min(W, Math.ceil(layer.x + layer.w)), y1 = Math.min(H, Math.ceil(layer.y + layer.h));
+        const lw = x1 - x0, ROWS = Math.max(1, Math.min(1024, y1 - y0));
+        this.sel.clear();
+        let count = 0;
+        if (lw > 0 && y1 > y0) {
+            const lp = this.layerPixels(layer);
+            const band = makeCanvas(lw, ROWS);
+            const bctx = band.getContext("2d", { willReadFrequently: true });
+            const alpha = new Uint8Array(lw * ROWS);
+            for (let by = y0; by < y1; by += ROWS) {
+                const bh = Math.min(ROWS, y1 - by);
+                bctx.clearRect(0, 0, lw, ROWS);
+                bctx.drawImage(lp, layer.x - x0, layer.y - by, layer.w, layer.h);
+                const src = bctx.getImageData(0, 0, lw, bh).data;
+                let on = 0;
+                for (let i = 0, j = 3; i < lw * bh; i++, j += 4) { const v = src[j] > 127 ? 255 : 0; alpha[i] = v; if (v) on++; }
+                if (on) this.sel.combine(bytesSource(alpha, x0, by, lw, bh), "add");
+                count += on;
+            }
         }
-        this.sel.writeRect(img, 0, 0);
         this.markSelectionChanged();
         this.draw();
-        this.setStatus(`Selection taken from ${layer.name}.`);
+        this.setStatus(count ? `Selection taken from ${layer.name}.` : `${layer.name} has no opaque pixels on the picture: nothing is selected.`);
     }
 
     // ---- selection ops -----------------------------------------------------

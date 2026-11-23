@@ -492,7 +492,9 @@ export class PointerPart {
             // the tone brush's curve is fixed for the stroke; Alt swaps dodge and burn (Photoshop's habit)
             const tone = toneTool ? this.toneStroke(e.altKey) : null;
             const mode = tone ? "tone" : this.smudgeOpts && this.smudgeOpts.mode;
-            this.pushUndo({ kind: "layer", id: layer.id, label: tone ? tone.label : mode === "blur" ? "Blur" : mode === "sharpen" ? "Sharpen" : "Smudge" });
+            // held to the release: the smudge writes nothing before its first move, so a click alone pushes no step (a push
+            // drops the redo steps; review 2026-11-16 canvas-tools/noop-steps-left-after-1b2f05d7)
+            const undoSnap = this.holdUndo({ kind: "layer", id: layer.id, label: tone ? tone.label : mode === "blur" ? "Blur" : mode === "sharpen" ? "Sharpen" : "Smudge" });
             // chosen before the gesture starts: a read during it must see the picture as if no gesture ran (brushSource)
             // blur and sharpen filter the picture of the press, not what the stroke has already done to it: every dab moves
             // the pixels towards one result, which the strength reaches where the brush passes often (filtering the live
@@ -502,7 +504,7 @@ export class PointerPart {
             const src = sample === "layer" ? null : this.brushSource(sample, layer, { snapshot: fx });
             const orig = fx && sample === "layer" ? layer.px.clone() : null;
             const pressure = this.pressureOf(e);
-            this.pointer = { kind: "smudge", layer, src, orig, tone, last: [ix, iy], clip: this.strokeClip(layer, layer.px), pressure, stab: this.newStabiliser(ix, iy, pressure) };
+            this.pointer = { kind: "smudge", layer, src, orig, tone, last: [ix, iy], clip: this.strokeClip(layer, layer.px), pressure, stab: this.newStabiliser(ix, iy, pressure), undoSnap };
             // blur, sharpen and the tone brush dab where they are pressed, so a click lightens a spot (GIMP, Photoshop);
             // the smudge only picks up there, at its first move
             if (fx) this.smudgeDab(this.pointer, ix, iy, ix, iy);
@@ -1131,6 +1133,7 @@ export class PointerPart {
             this.draw();
         } else if (p.kind === "smudge") {
             this.finishStroke(p);
+            this.landUndo(p, !!p.bounds);   // a dab widens the box; none was laid, nothing changed
             // the box the dabs covered (the whole layer before 0.1.32: every matched layer above lost its statistics)
             if (p.bounds) this.markLayerChanged(p.layer, this.strokeRect(p, p.layer.px));
             if (p.orig) { p.orig.release(); p.orig = null; }

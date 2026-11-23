@@ -6,6 +6,7 @@ import { bytesToImage, canvasBytes, referenceBytes, transparentPixels } from "./
 import { refusal } from "./inpaint_status.js";
 import { hasTokens, referencesRule, referencesText } from "./reftokens.js";
 import { smallBoxes, smallNote } from "./boxes.js";
+import { layerBoxes, layerMoves } from "./boxes_model.js";
 import { areaState, runEachArea } from "./eacharea.js";
 import { runSplitLayers, landKeptSplit } from "./splitlayers.js";
 import { encodeTilePixels } from "./inpaint_encode.js";
@@ -40,6 +41,9 @@ export const HostGeneratePart = {
         const height = Math.max(64, Math.round(opts.height || editor.height || 1024));
         // the frame the plugins' image coordinates (the boxes) are measured in: the answer may come back at another size
         const drawnOn = { width: editor.width || 0, height: editor.height || 0 };
+        // and the reference layers' boxes: a new base of another size places them again (setBasePixels), so a From box's src
+        // follows its layer, not the picture
+        const refsBefore = layerBoxes(editor.layers.filter((l) => editor.isReference(l)));
         // the prompt and the references of the click; a token that cannot go refuses before anything is sent
         const base = opts.refs || editor.refSnapshot();
         const snap = { ...base, prompt: opts.prompt != null ? String(opts.prompt) : base.prompt, negative: opts.negative != null ? String(opts.negative) : base.negative };
@@ -132,7 +136,7 @@ export const HostGeneratePart = {
         // another size: what the plugins keep in image coordinates follows it, as after a resize (the boxes were fractions
         // of the frame for the model, so they still are). Generate new clears the undo history, so there is no step to share
         if (drawnOn.width > 0 && drawnOn.height > 0 && (c.width !== drawnOn.width || c.height !== drawnOn.height)) {
-            this.changed(editor, { geometry: { kind: "resize", m: [c.width / drawnOn.width, 0, 0, c.height / drawnOn.height, 0, 0], from: drawnOn, to: { width: c.width, height: c.height } } });
+            this.changed(editor, { geometry: { kind: "resize", m: [c.width / drawnOn.width, 0, 0, c.height / drawnOn.height, 0, 0], from: drawnOn, to: { width: c.width, height: c.height }, layers: layerMoves(refsBefore, editor.layers) } });
         }
         const gotAlpha = cutout && transparentPixels(c);
         const notes = [...preNotes, ...(res.notes || [])];

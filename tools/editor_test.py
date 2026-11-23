@@ -14472,6 +14472,87 @@ if (out.redo.length !== 1 || out.undo !== 0) throw new Error("a click that moved
 if (out.dragPushed !== 1) throw new Error("a drag did not push its move: " + JSON.stringify(out));
 return out;
 """),
+    # canvas-tools/noop-steps-left-after-1b2f05d7: a smudge click (it writes nothing before its first move) and a click on a
+    # handle of a pending rotation (it scales nothing) push no step either; a drag of each still does
+    ("a_smudge_or_rotate_handle_click_keeps_the_redo", """
+const doc = await run("new_document");
+const ed = ednow(doc.id);
+host.shell.activate(ed);
+await run("new_canvas", { width: 300, height: 200, doc: doc.id });
+await run("add_paint_layer", { doc: doc.id });
+await run("select_rect", { x: 10, y: 10, w: 200, h: 150, doc: doc.id });
+ed.fillSelection();
+await run("select_none", { doc: doc.id });
+await ed.undoStep();                                 // the deselect goes to redo
+const redo0 = ed.redo.map((s) => s.label), undo0 = ed.undo.length;
+ed.draw();
+const rect = ed.canvas.getBoundingClientRect();
+const client = (ix, iy) => { const [sx, sy] = ed.imageToScreen(ix, iy); return { clientX: rect.left + sx * rect.width / ed.canvas.width, clientY: rect.top + sy * rect.height / ed.canvas.height }; };
+const ev = (type, ix, iy) => new PointerEvent(type, Object.assign({ bubbles: true, cancelable: true, pointerId: 32, pointerType: "mouse", isPrimary: true, button: type === "pointermove" ? -1 : 0, buttons: type === "pointerup" ? 0 : 1 }, client(ix, iy)));
+const click = async (x, y) => { ed.canvas.dispatchEvent(ev("pointerdown", x, y)); await wait(30); ed.canvas.dispatchEvent(ev("pointerup", x, y)); await wait(30); };
+const drag = async (x, y, x1, y1) => { ed.canvas.dispatchEvent(ev("pointerdown", x, y)); ed.canvas.dispatchEvent(ev("pointermove", (x + x1) / 2, (y + y1) / 2)); ed.canvas.dispatchEvent(ev("pointermove", x1, y1)); ed.canvas.dispatchEvent(ev("pointerup", x1, y1)); await wait(30); };
+const out = { redo0 };
+ed.smudgeOpts.mode = "smudge";
+ed.setTool("smudge");
+await click(100, 80);
+out.smudgeClick = { redo: ed.redo.length, undo: ed.undo.length - undo0 };
+ed.setTool("transform");
+ed.startPending("rotate");
+const L = ed.activeLayer();
+await click(L.x + L.w, L.y + L.h);                   // the bottom right handle
+out.rotateClick = { pending: !!ed.pending, redo: ed.redo.length, undo: ed.undo.length - undo0 };
+await drag(L.x + L.w, L.y + L.h, L.x + L.w - 30, L.y + L.h - 20);
+out.rotateDrag = { undo: ed.undo.length - undo0, top: ed.undo[ed.undo.length - 1].label };
+ed.cancelPending();
+ed.setTool("smudge");
+await drag(60, 60, 140, 100);
+out.smudgeDrag = { undo: ed.undo.length - undo0, top: ed.undo[ed.undo.length - 1].label };
+ed.setTool("brush");
+host.shell.activate(ednow(window.__t));
+await run("close_document", { doc: doc.id, force: true });
+if (out.smudgeClick.redo !== 1 || out.smudgeClick.undo !== 0) throw new Error("a smudge click pushed a step: " + JSON.stringify(out));
+if (!out.rotateClick.pending || out.rotateClick.redo !== 1 || out.rotateClick.undo !== 0) throw new Error("a click on a rotation's handle pushed a step: " + JSON.stringify(out));
+if (out.rotateDrag.undo !== 1 || out.rotateDrag.top !== "Scale") throw new Error("a drag of a rotation's handle did not push its step: " + JSON.stringify(out));
+if (out.smudgeDrag.undo !== 2 || out.smudgeDrag.top !== "Smudge") throw new Error("a smudge drag did not push its step: " + JSON.stringify(out));
+return out;
+"""),
+    # canvas-select/selection-from-layer-full-canvas-and-filter-wipe: Selection > Layer reads the layer's box in bands (a
+    # layer moved partly off the picture gives exactly its opaque part on it), and a filter layer without pixels is refused
+    # with the selection kept
+    ("selection_from_layer_takes_its_box_and_refuses_a_filter", """
+const doc = await run("new_document");
+const ed = ednow(doc.id);
+host.shell.activate(ed);
+await run("new_canvas", { width: 300, height: 200, doc: doc.id });
+const P = await run("add_paint_layer", { doc: doc.id });
+await run("select_rect", { x: 20, y: 30, w: 100, h: 60, doc: doc.id });
+ed.fillSelection();
+await run("select_none", { doc: doc.id });
+const pid = P.id || ed.activeLayerId;
+await run("set_layer", { layer: pid, x: -40, y: 10, doc: doc.id });
+const undo0 = ed.undo.length;
+const r = await run("select_from_layer", { layer: pid, doc: doc.id });
+const a = ed.sel.readRect(0, 0, 300, 200).data;
+let wrong = 0, on = 0;
+for (let y = 0; y < 200; y++) for (let x = 0; x < 300; x++) {
+    const v = a[(y * 300 + x) * 4 + 3], want = x < 80 && y >= 40 && y < 100 ? 255 : 0;
+    if (v) on++;
+    if (v !== want) wrong++;
+}
+const out = { r, wrong, on, steps: ed.undo.length - undo0, top: ed.undo[ed.undo.length - 1].label };
+await run("select_rect", { x: 200, y: 20, w: 50, h: 40, doc: doc.id });
+const F = await run("add_filter", { type: "levels", doc: doc.id });
+const before = ed.undo.length;
+await run("select_from_layer", { layer: F.id || ed.activeLayerId, doc: doc.id });
+out.filter = { steps: ed.undo.length - before, bounds: ed.getBounds(), said: ed.status };
+host.shell.activate(ednow(window.__t));
+await run("close_document", { doc: doc.id, force: true });
+if (out.wrong || out.on !== 80 * 60) throw new Error("the selection is not the layer's opaque part on the picture: " + JSON.stringify(out));
+if (out.steps !== 1 || out.top !== "Selection from layer") throw new Error("not one step: " + JSON.stringify(out));
+const fb = out.filter.bounds;
+if (out.filter.steps !== 0 || !fb || fb[0] !== 200 || fb[1] !== 20 || !/filter layer/.test(out.filter.said || "")) throw new Error("a filter layer wiped the selection or was not refused: " + JSON.stringify(out));
+return out;
+"""),
     # canvas-tools/stale-text-undo-snapshot: focusing the text field and leaving it without typing keeps no step; a later
     # edit through the field is its own step, so its undo does not take back the Bold made in between
     ("a_text_field_left_unchanged_keeps_no_stale_step", """

@@ -114,13 +114,15 @@ export class GeometryPart {
             const handle = this.handleAt(lx, ly);
             if (handle) {
                 // scale in the un-rotated frame; the corner opposite the handle stays put on screen
-                this.pushUndo({ kind: "transform", id: l.id, label: "Scale" });
-                this.pointer = { kind: "scale", layer: l, handle, start: [lx, ly], orig: { x: l.x, y: l.y, w: l.w, h: l.h }, keepAspect: handle.length === 2 && !e.shiftKey, angle: p.angle, center: [cx, cy] };
+                // held to the release, as the move tool's: a click on a handle that scales nothing pushes no step
+                // (a push drops the redo steps; review 2026-11-16 canvas-tools/noop-steps-left-after-1b2f05d7)
+                const undoSnap = this.holdUndo({ kind: "transform", id: l.id, label: "Scale" });
+                this.pointer = { kind: "scale", layer: l, handle, start: [lx, ly], orig: { x: l.x, y: l.y, w: l.w, h: l.h }, keepAspect: handle.length === 2 && !e.shiftKey, angle: p.angle, center: [cx, cy], undoSnap, boxes0: `${l.x},${l.y},${l.w},${l.h}` };
                 return;
             }
             if (lx >= l.x && lx <= l.x + l.w && ly >= l.y && ly <= l.y + l.h) {
-                this.pushUndo({ kind: "transform", id: l.id, label: "Move layer" });
-                this.pointer = { kind: "move", layer: l, start: [ix, iy], orig: { x: l.x, y: l.y } };
+                const undoSnap = this.holdUndo({ kind: "transform", id: l.id, label: "Move layer" });
+                this.pointer = { kind: "move", layer: l, start: [ix, iy], orig: { x: l.x, y: l.y }, undoSnap, boxes0: `${l.x},${l.y},${l.w},${l.h}` };
                 return;
             }
             this.pointer = { kind: "pending", start: Math.atan2(iy - cy, ix - cx), startAngle: p.angle, snap: e.shiftKey };

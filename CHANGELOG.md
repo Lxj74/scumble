@@ -11,6 +11,18 @@ the section for its version; `docs/` and the commit history hold the technical d
 - **Relight on the whole picture:** while the picture is read for the run, an edit you make meanwhile no longer records
   the relight layer as hidden (an undo of that edit later hid it), and a layer's eye clicked during the read stays as you
   set it. The shadow maps still being made when you undo a step now land on the layer you see.
+- **Fixed, from the code review:**
+  - A click with the smudge brush, or on a handle of a rotation not yet applied, no longer adds an empty undo step, so
+    what you undid before stays on redo.
+  - *Selection › Layer* reads only the layer's own area, so on a large picture it takes a small layer at once instead
+    of seconds and gigabytes. On a filter layer it now says the layer has no pixels instead of clearing the selection.
+  - *Selection › Range*: Ctrl+Z during the run waits for it and then takes it back; before, the run went on writing into
+    the selection the undo had restored. Escape during the run no longer fails on a large selection with the tile
+    engine off.
+  - *Generate new* on your ComfyUI moves the boxes to the new picture's size, as the API models' *Generate new* does. A
+    From box's source follows its reference layer when the new picture places that layer again (both routes).
+  - Deep paint: a soft depth, brightness or colour limit over transparent pixels no longer darkens the paint at its
+    edge, and *Wrap* with the depth points no longer tears a pattern at an object's outline against the sky.
 
 ## 0.1.59 - 2026-11-20
 

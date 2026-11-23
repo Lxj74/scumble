@@ -191,6 +191,24 @@ const ROOT = path.join(__dirname, "..");
         let wmax = 0;
         for (let i = 0; i < flatOut.length; i++) wmax = Math.max(wmax, Math.abs(flatOut[i] - wallOut[i]));
         check("a wall face on: the points give the flat result within 2 levels", wmax <= 2, wmax);
+        // (a') the same wall with the sky right of column 220 (the mask drops it: all-zero points). The normals' mask does
+        // not mark it (alpha 255 everywhere), so the wall's last column samples its dropped neighbour: kept taps only, the
+        // slopes stay those of a wall face on (they spiked at the rim; review 2026-11-16 wrap-points-bilinear-across-mask-zero),
+        // and a centre on the sky has no depth: null, the normals' slopes take over
+        {
+            const cut = pointsOf((d) => (d[0] * F + PW / 2 - 0.5 < 220 ? [d[0] * 5, d[1] * 5, 5] : null));
+            const pc = S.packPoints(cut.pts, cut.mask, PW, PH);
+            const cutMap = makeMap("points", PW, PH, pc.data, [PW, 0, 0, PH, 0, 0], pc.meta, null, "rgb16");
+            const sb = [200, 140, 230, 160];
+            const sl = Wr.wrapSlopesPoints(cutMap, nmap2, sb, 210, 150);
+            let worst = 0;
+            for (let y = 0; y < sb[3] - sb[1]; y++) for (let x = 0; x < 220 - sb[0]; x++) {
+                const i = y * (sb[2] - sb[0]) + x;
+                worst = Math.max(worst, Math.abs(sl.gx[i] - 1), Math.abs(sl.gy[i] - 1));
+            }
+            check("points with the sky dropped: the wall's slopes at its rim stay within 3 % of 1", !!sl && worst < 0.03, worst);
+            check("points with the sky dropped: a centre on the sky gives no slopes (the normals take over)", Wr.wrapSlopesPoints(cutMap, nmap2, sb, 225, 150) === null);
+        }
         // (b) a floor one unit below the camera (y down): rows nearer the horizon are further away
         const floor = pointsOf((d) => (d[1] > 0.02 ? [d[0] / d[1], 1, 1 / d[1]] : null));
         const pf = S.packPoints(floor.pts, floor.mask, PW, PH);

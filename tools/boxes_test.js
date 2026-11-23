@@ -464,6 +464,11 @@ const box = (extra = {}) => ({ id: "edit_1", kind: "new", rect: [0.25, 0.25, 0.7
     check("mapBox: a quarter turn of a 1000 x 600 picture (x' = 600 - y, y' = x) maps the corners' bounding box", eq(M.mapBox([10, 20, 110, 220], [0, 1, -1, 0, 600, 0]), [380, 10, 580, 110]) && M.mapBox(null, [1, 0, 0, 1, 0, 0]) === null, short(M.mapBox([10, 20, 110, 220], [0, 1, -1, 0, 600, 0])));
     const mm = M.mapBoxes(mb.boxes, [2, 0, 0, 2, 0, 0]);
     check("mapBoxes: new objects, the old list untouched", mm[0] !== mb.boxes[0] && eq(mm[0].rect, [20, 40, 220, 440]) && eq(mb.boxes[0].rect, [10, 20, 110, 220]), "");
+    // a new picture of another size places the reference layers again: a From box's src follows its layer's own move, its
+    // rect (and every other box) the picture's
+    const lmv = M.layerMoves(M.layerBoxes([{ id: "L3", x: 500, y: 300, w: 200, h: 100 }]), [{ id: "L3", x: 10, y: 20, w: 100, h: 50 }, { id: "L4", x: 0, y: 0, w: 5, h: 5 }]);
+    const fm = M.mapBoxes([{ id: "f_1", kind: "from", layer: "L3", rect: [0, 0, 100, 100], src: [550, 325, 650, 375] }, { id: "m_1", kind: "move", rect: [0, 0, 10, 10], src: [500, 300, 520, 320] }], [0.5, 0, 0, 0.5, 0, 0], lmv);
+    check("layerMoves / mapBoxes: a From box's src follows its re-placed layer, a Move box's src the picture", eq(Object.keys(lmv), ["L3"]) && eq(fm[0].src, [35, 33, 85, 58]) && eq(fm[0].rect, [0, 0, 50, 50]) && eq(fm[1].src, [250, 150, 260, 160]) && eq(M.mapBoxes([fm[0]], [2, 0, 0, 2, 0, 0])[0].src, [70, 66, 170, 116]), short(fm));
     check("selectionInput: a New box with the prompt; a From box of the layer the prompt's first @img names", eq(M.selectionInput({ x: 5, y: 6, w: 10, h: 20 }, "a red door", () => null), { id: undefined, kind: "new", rect: [5, 6, 15, 26], layer: undefined, desc: "a red door" })
         && M.selectionInput({ x: 5, y: 6, w: 10, h: 20 }, "put @img2 here", (label) => (label === "img2" ? { id: "L7" } : null)).layer === "L7", "");
     const mchk = M.cropCheck([{ id: "a_1", kind: "new", rect: [0, 0, 10, 10] }, { id: "b_1", kind: "new", rect: [150, 150, 400, 400] }], { x: 100, y: 100, w: 400, h: 400, emitted: [1024, 1024], paste: "selection" }, [200, 200, 300, 300]);

@@ -455,6 +455,19 @@ async function main() {
         assert.ok(savedData, "putImageData called");
         assert.strictEqual(savedData[0], 0, "px 0 inside range took filtered value 0");
         assert.strictEqual(savedData[4], 200, "px 1 outside range took src value 200");
+        // over a clear pixel (Deep paint raises the alpha): a feathered weight mixes the premultiplied colours, so the
+        // paint keeps its colour at the edge and only its alpha falls (review 2026-11-16 plain-limit-darkens-over-transparency);
+        // equal alphas keep the plain mix's bytes (px 1)
+        const lim = { source: "luma", lo: 0.1, hi: 0.4, fLo: 0.2, fHi: 0.2, invert: false };
+        const wClear = limitWeight(normalizeLimit(lim), 0, 0, 0, 0);
+        const wGrey = limitWeight(normalizeLimit(lim), 128 / 255, 128 / 255, 128 / 255, 0);
+        assert.ok(wClear > 0 && wClear <= 1 && wGrey > 0 && wGrey < 1, "the limit's weights are partial: " + [wClear, wGrey]);
+        const srcT = { width: 2, height: 1, getContext: () => ({ getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 0, 128, 128, 128, 255]) }) }) };
+        const outT = { width: 2, height: 1, getContext: () => ({ getImageData: () => ({ data: new Uint8ClampedArray([200, 100, 50, 255, 0, 0, 0, 255]) }) }) };
+        limitStageCPU(srcT, outT, lim);
+        assert.deepStrictEqual(Array.from(savedData.slice(0, 4)), [200, 100, 50, Math.round(255 * wClear)], "over a clear pixel the paint keeps its colour: " + Array.from(savedData.slice(0, 4)));
+        assert.strictEqual(savedData[4], Math.round(128 + (0 - 128) * wGrey), "equal alphas: the plain mix");
+        assert.strictEqual(savedData[7], 255, "equal alphas: the alpha kept");
     } finally {
         document.createElement = origCreateEl;
     }

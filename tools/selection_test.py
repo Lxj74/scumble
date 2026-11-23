@@ -456,6 +456,32 @@ if (ed.tileMode) {
         }
     }
 
+    // Case 12b: Ctrl+Z while the bands run waits for the run (trackEdit) and then takes back its step: the selection is the
+    // one before it, the step gone, and no band wrote into the selection the undo put back (review 2026-11-16
+    // canvas-select/select-range-untracked-undo-and-cancel-crash)
+    {
+        const undoLen = ed.undo.length;
+        const before = probes.map((x) => at(x, 600));
+        pool.run = function(op, args, transfer, opts) {
+            if (opts && opts.group && opts.group.startsWith("range")) {
+                return new Promise((resolve, reject) => { setTimeout(() => { origRun(op, args, transfer, opts).then(resolve, reject); }, 300); });
+            }
+            return origRun(op, args, transfer, opts);
+        };
+        const run = ed.selectRange({ source: "depth", lo: 0.1, hi: 0.9 }, "replace");
+        await new Promise((r) => setTimeout(r, 60));
+        const undone = ed.undoStep();
+        let ranFirst = false;
+        await run.then(() => { ranFirst = true; });
+        await undone;
+        pool.run = origRun;
+        const after = probes.map((x) => at(x, 600));
+        if (!ranFirst) throw new Error("case 12b: the undo did not wait for the range run");
+        if (ed.undo.length !== undoLen) throw new Error(`case 12b: undo length ${undoLen} -> ${ed.undo.length}`);
+        if (after.some((v, i) => v !== before[i])) throw new Error("case 12b: the selection is not the one before the run: " + JSON.stringify({ before, after }));
+        if (ed.redo.length < 1 || !/range/i.test(ed.redo[ed.redo.length - 1].label || "")) throw new Error("case 12b: the run's step is not on redo: " + JSON.stringify(ed.redo.map((s) => s.label)));
+    }
+
     // K21: skipped rows (all-full and all-empty) post 0 pool jobs and produce exact pct, bounds, and tiles
     const { STEP_MARKS } = await import("./editor/inpaint_jobs.js");
     STEP_MARKS.length = 0;

@@ -931,6 +931,14 @@ try {
     host.queueGenerate = async (e) => { mark = e._newBoxes; e._newBoxes = undefined; throw new Error("stub: not queued"); };
     try { await c("generate_new", { prompt: "a bowl of fruit", width: 1024, height: 1024, doc: d.id, timeout: 5 }); } catch (_) { /* the stub's */ }
     host.queueGenerate = saved.queueGenerate;
+    // the document's own boxes follow the new picture, as the API path's resize moves them (review 2026-11-16
+    // prompt-refs/local-generate-new-leaves-boxes-in-old-pixels: they stayed in the old picture's pixels)
+    const kept = ((await c("boxes.list", { doc: d.id })).boxes || []).find((b) => b.id === "lamp_from_1");
+    // (whole pixels); its src follows the lamp layer, which the new picture placed again, not the picture
+    const L2 = ed.layers.find((l) => l.id === lamp.id);
+    const close = (u, v) => u && u.length === v.length && u.every((x, i) => Math.abs(x - v[i]) <= 1);
+    const srcWant = L2 ? [L2.x + 0.25 * L2.w, L2.y + 0.25 * L2.h, L2.x + 0.75 * L2.w, L2.y + 0.75 * L2.h] : null;
+    if (!kept || !close(kept.rect, [100 * 1024 / 1200, 100 * 1024 / 800, 300 * 1024 / 1200, 300 * 1024 / 800]) || !close(kept.src, srcWant)) throw new Error("the document's boxes stayed in the old picture's pixels after generate_new: " + JSON.stringify({ kept, srcWant }));
     const fromBox = mark && mark.plan && (mark.plan.boxes || []).find((b) => b.id === "lamp_from_1");
     if (!mark || !eq(mark.from, [1200, 800]) || !fromBox || !eq(fromBox.src, [0.25, 0.25, 0.75, 0.75]) || fromBox.ref !== 0 || !eq(mark.plan.boxes.map((b) => b.id), ["apple_1", "lamp_from_1"]) || !eq(mark.plan.dropped, ["old_lamp_1: a new image has no source to keep, move or remove (move)."]) || !mark.plan.goes || ed.width !== 1024) throw new Error("generate_new's plan: " + JSON.stringify({ mark, w: ed.width }));
     ed._newBoxes = mark;

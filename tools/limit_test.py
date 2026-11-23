@@ -102,10 +102,25 @@ JS = r"""
     const overCpu = GL.glToCanvas(F.applyFilter("levels", ramp256, pOver, { cpu: true, cache: {}, limitOver: true }));
     const plainCpu = GL.glToCanvas(F.applyFilter("levels", ramp256, { inBlack: 50, inWhite: 200 }, { cpu: true, cache: {} }));
     const pxAt = (c, x) => Array.from(c.getContext("2d").getImageData(x, 128, 1, 1).data);
+    const pxAt8 = (c) => Array.from(c.getContext("2d").getImageData(8, 8, 1, 1).data);
     for (const [name, c] of [["gpu", overGpu], ["cpu", overCpu]]) {
         const out = pxAt(c, 40), inn = pxAt(c, 128), ref = pxAt(plainCpu, 128);
         check(`Case 2d ${name}: w = 0 is transparent`, out[3] === 0, out);
         check(`Case 2d ${name}: w = 1 is the filtered picture, opaque`, inn[3] === 255 && Math.abs(inn[0] - ref[0]) <= 2, { inn, ref });
+    }
+
+    // 2e. a result over a clear pixel (Deep paint raises the alpha, plain: no limitOver) with a feathered weight: the
+    // premultiplied colours mix, so the paint keeps its colour and only its alpha falls, on both paths (review
+    // 2026-11-16 p1-deeppaint-layer/plain-limit-darkens-over-transparency: the edge went dark)
+    {
+        const LM = await import("./editor/inpaint_limit.js");
+        const clear = mk(16, 16), paint = mk(16, 16);
+        { const x = paint.getContext("2d"); x.fillStyle = "rgb(200, 100, 50)"; x.fillRect(0, 0, 16, 16); }
+        const lim = { source: "luma", lo: 0.1, hi: 1, fLo: 0.2, fHi: 0 };
+        for (const [name, info] of [["gpu", {}], ["cpu", { cpu: true }]]) {
+            const p = pxAt8(GL.glToCanvas(LM.limitStage(clear, paint, lim, info)));
+            check(`Case 2e ${name}: over a clear pixel the paint keeps its colour, half its alpha`, Math.abs(p[0] - 200) <= 3 && Math.abs(p[1] - 100) <= 3 && Math.abs(p[2] - 50) <= 3 && Math.abs(p[3] - 128) <= 1, p);
+        }
     }
 
     // -------------------------------------------------------------------------

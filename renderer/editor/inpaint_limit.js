@@ -38,7 +38,13 @@ vec4 shade(vec4 c, vec2 uv) {
     float mv = u_hasMap == 1 ? snapField(u_map, u_guide, mp, i.rgb, u_snap) : 0.0;
     float w = (u_source == 0 && u_hasMap == 0) ? 0.0 : w_limit(u_source, i.rgb, mv, u_r, u_inv == 1, u_ref, u_tol);
     if (u_view == 1) return vec4(vec3(w), 1.0);
-    return u_over == 1 ? vec4(c.rgb, c.a * w) : mix(i, c, w);
+    if (u_over == 1) return vec4(c.rgb, c.a * w);
+    // straight colours: a mix where the alphas differ (Deep paint over transparency raises it) is a mix of the
+    // premultiplied ones, or a feathered edge over a clear pixel came out dark (review 2026-11-16
+    // p1-deeppaint-layer/plain-limit-darkens-over-transparency); equal alphas keep the plain mix, the same values
+    if (abs(i.a - c.a) < 1e-6) return mix(i, c, w);
+    float ao = mix(i.a, c.a, w);
+    return ao > 1e-6 ? vec4(mix(i.rgb * i.a, c.rgb * c.a, w) / ao, ao) : vec4(0.0);
 }
 `,
 };
@@ -182,11 +188,23 @@ export function limitStageCPU(srcCanvas, outCanvas, limit, info = {}, over = fal
                 resData[ptr + 1] = cG;
                 resData[ptr + 2] = cB;
                 resData[ptr + 3] = Math.max(0, Math.min(255, Math.round(cA * w)));
-            } else {
+            } else if (iA === cA) {
                 resData[ptr] = Math.max(0, Math.min(255, Math.round(iR + (cR - iR) * w)));
                 resData[ptr + 1] = Math.max(0, Math.min(255, Math.round(iG + (cG - iG) * w)));
                 resData[ptr + 2] = Math.max(0, Math.min(255, Math.round(iB + (cB - iB) * w)));
-                resData[ptr + 3] = Math.max(0, Math.min(255, Math.round(iA + (cA - iA) * w)));
+                resData[ptr + 3] = iA;
+            } else {
+                // the alphas differ: the premultiplied colours mix (the shader's rule above)
+                const ao = iA + (cA - iA) * w;
+                if (ao > 0) {
+                    const pa = iA * (1 - w), pc = cA * w;
+                    resData[ptr] = Math.max(0, Math.min(255, Math.round((iR * pa + cR * pc) / ao)));
+                    resData[ptr + 1] = Math.max(0, Math.min(255, Math.round((iG * pa + cG * pc) / ao)));
+                    resData[ptr + 2] = Math.max(0, Math.min(255, Math.round((iB * pa + cB * pc) / ao)));
+                    resData[ptr + 3] = Math.max(0, Math.min(255, Math.round(ao)));
+                } else {
+                    resData[ptr] = resData[ptr + 1] = resData[ptr + 2] = resData[ptr + 3] = 0;
+                }
             }
         }
     }

@@ -10,6 +10,7 @@ import { lacksNodesText } from "./editor/comfyprompt.js";
 import { refusal } from "./editor/inpaint_status.js";
 import { AREA_CAP } from "./editor/eacharea.js";
 import { SPLIT_COUNT_DEFAULT, SPLIT_TIERS } from "./editor/splitlayers.js";
+import { layerBoxes, layerMoves } from "./editor/boxes_model.js";
 import { P, RELIGHT_FROM_LIGHTS, RELIGHT_MODEL, agentRefs, aspectText, bounds, checkParams, clampInt, filterStepLabel, findLayer, generateEachArea, groupSummary, layerSummary, rectMask, relightModel, sizeForAspect, targetSize, touch, until, wait, writeParams, writeRelightModel, writeTarget } from "./commands_util.js";
 
 /** @typedef {import("./commands.js").Command} Command */
@@ -89,9 +90,16 @@ export const RunCommandsPart = {
             // the white crop: 26e names them), everything selected, the recipe run, then the result flattened into the
             // base; flatten keeps the reference layers. The boxes go as fractions of the picture they were drawn on, scaled
             // to the fresh canvas (host.queueGenerate reads `_newBoxes` once)
-            const drawnOn = [ed.width, ed.height];
+            const drawnOn = [ed.width, ed.height], refsBefore = layerBoxes(ed.layers.filter((l) => ed.isReference(l)));
             await ed.newCanvas(`${w}x${h}`, { keepRefs: true });
             if (ed.width !== w || ed.height !== h) throw new Error(ed.status);
+            // what the plugins keep in image coordinates (the boxes) follows the new picture, as the API path's resize does
+            // (host_generate.js); the run's own boxes were measured above (boxPlan, a copy) and are scaled once by the queue
+            // (review 2026-11-16 prompt-refs/local-generate-new-leaves-boxes-in-old-pixels)
+            if (drawnOn[0] > 0 && drawnOn[1] > 0 && (w !== drawnOn[0] || h !== drawnOn[1])) {
+                // the reference layers were placed again on the new picture: a From box's src follows its layer (`layers`)
+                host.changed(ed, { geometry: { kind: "resize", m: [w / drawnOn[0], 0, 0, h / drawnOn[1], 0, 0], from: { width: drawnOn[0], height: drawnOn[1] }, to: { width: w, height: h }, layers: layerMoves(refsBefore, ed.layers) } });
+            }
             ed.applyMaskToSelection(rectMask(ed, 0, 0, ed.width, ed.height), "replace");
             ed._newBoxes = { from: drawnOn, aspect, plan: boxPlan };
             let res;
