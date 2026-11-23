@@ -104,10 +104,10 @@ written down anywhere.
   bumped by a new mask, a cancelled map preview put back under its own kind, and the whole-picture relight's read
   hiding its layers without a write to their eye, CHANGELOG line), the Realism Pass status line naming the DLSS5 fork
   (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
-  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), seven shoulds of item 73 (2026-11-23,
-  CHANGELOG "Fixed, from the code review"; the seventh the distort / warp bake by backward mapping). Item 77 is done. **Next:** the release
+  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), ten shoulds of item 73 (2026-11-23,
+  CHANGELOG "Fixed, from the code review": six, the distort / warp bake by backward mapping, three 15k perf ones). Item 77 is done. **Next:** the release
   chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
-  the user's pick from the list. `main` is 12 commits ahead of origin (nothing pushed since the move).
+  the user's pick from the list. `main` is 16 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
@@ -359,11 +359,16 @@ planning it. A new item gets its number and a few lines here; its research goes 
   (`pendingPreview`, made in a timeout after the frame; the commit reuses it when made from the same `px`), the drag
   keeps the canvas mesh but through a scratch when the layer is below full opacity or blends (`drawPendingMesh`);
   2048 x 2048 in about 175 ms; `tools/meshwarp_test.js` (gate `meshwarp`) and the editor step
-  `distort_and_warp_keep_a_half_transparent_alpha` (the old bake gave alpha up to 220 for 102). **Left, 6 shoulds:**
-  `untick-row-falls-to-comfy-default` and `fanout-setting-slot-clobbers-targets` (a fanned-out setting slot: one shared
-  row or one per target is the user's call), three 15k perf ones (`relight-whole-full-canvas-15k-and-huge`,
-  `wrap-paint-layer-full-canvas-15k`, `own-pixels-mips-block-main-thread`), `flat-psd-extra-channel-as-transparency` (needs a fixture from Photoshop and one
-  from another writer first). Then the 58 nice. Verify each against the code first.
+  `distort_and_warp_keep_a_half_transparent_alpha` (the old bake gave alpha up to 220 for 102). The three 15k perf ones
+  (2026-11-23, each with gate checks that fail without it; no 15k run measured): `wrap-paint-layer-full-canvas-15k`
+  (`wrapPixels` takes `px.bounds()`, kept per pixel version, refuses an empty layer and a box above 36 MP; the deeppaint
+  gate), `relight-whole-full-canvas-15k-and-huge` (without detail the read is `sampleRegionSettled` at the send size and
+  the answer lands at its own size over the picture; relight gate case u counts the canvases made) and
+  `own-pixels-mips-block-main-thread` (`ownPixelsFor` passes the view pass's `screen` / `display`, `filterKey` keys on the
+  paint's `chainEpoch` for those, `passStores` primes the paint; the deeppaint gate with the scheduler's budget at 0).
+  **Left, 3 shoulds:** `untick-row-falls-to-comfy-default` and `fanout-setting-slot-clobbers-targets` (a fanned-out
+  setting slot: one shared row or one per target is the user's call), `flat-psd-extra-channel-as-transparency` (needs a
+  fixture from Photoshop and one from another writer first). Then the 58 nice. Verify each against the code first.
 - 74: an automated tile upscaler / refiner (the user, 2026-11-18, as the answer to issue #14): the picture split into
   overlapping tiles small enough for the model to render at full detail, each refined on its own and put back
   together, one general prompt or one a vision model writes per tile. Pieces that exist: *Each area* (item 54),

@@ -34,6 +34,9 @@ the section for its version; `docs/` and the commit history hold the technical d
   - *Relight whole picture* with *Detail from original* off reads the picture at the size it is sent at and lands the
     answer at its own size over the whole picture. On a very large picture it no longer builds two copies at full
     size on the way (about 1.8 GB at 15000 x 10000) and no longer freezes the window for seconds.
+  - Deep paint on a very large picture: the reduced copies of its paint for a zoomed-out view and for a picture read
+    (Save's thumbnail, the magic wand) are made in the background like every other layer's, instead of in one long
+    stall of the window, and are no longer kept on the paint for good (about 200 MB at 15000 x 10000).
 
 ## 0.1.59 - 2026-11-20
 

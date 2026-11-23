@@ -807,6 +807,9 @@ export class FiltersPart {
         }
         if (FILTERS[layer.filter] && FILTERS[layer.filter].ownPixels) {
             baseKey.push(layer.px ? layer.px.version : -1);
+            // a screen pass draws coarse cells of tiles whose chains are still in the worker (`ownPixelsFor`): their
+            // landing moves the pixels' chainEpoch, and the pass is made again with them
+            if (vp && (vp.screen || vp.display) && layer.px) baseKey.push("chains", layer.px.chainEpoch || 0);
             // a stroke on the layer is drawn over its pixels per pass (`ownPixelsFor`): every dab moves `pixelVersion`
             if (!forRun && this.liveStrokeOn(layer)) baseKey.push("stroke", this.pixelVersion);
         }
@@ -888,7 +891,11 @@ export class FiltersPart {
             ctx.globalCompositeOperation = "source-over";
             ctx.clearRect(0, 0, w, h);
             if (isTilePixels(layer.px)) {
-                const vp = { x: x0, y: y0, w: w / sx, h: h / sy, sx, sy };
+                // a pass for the screen reads as the screen's layers do: a tile without its chain shows a coarse cell
+                // and asks the mips worker for it (C6 b), instead of building it here (up to 2,360 chains in one frame at
+                // 15k; the review of 2026-11-16, own-pixels-mips-block-main-thread)
+                const cur = pass.forRun ? null : this.viewPass;
+                const vp = { x: x0, y: y0, w: w / sx, h: h / sy, sx, sy, screen: !!(cur && cur.screen), display: !!(cur && cur.display) };
                 ctx.setTransform(sx, 0, 0, sy, -x0 * sx, -y0 * sy);
                 this.drawTilesInto(ctx, layer.px, 0, 0, W, H, vp);
                 if (p) this.drawStrokeInto(ctx, { x: 0, y: 0, w: W, h: H }, layer.px, op, vp, [0, 0, w, h]);

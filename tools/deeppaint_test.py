@@ -133,6 +133,47 @@ JS = r"""
     check("painted: the formula within a level, the rest byte for byte", r1.inMax <= 1 && r1.outN === 0, r1);
     check("the paint takes the light: left darker than right", (() => { const a = ref[4 * (150 * W + 105)], b = ref[4 * (150 * W + 215)]; return a < b; })());
 
+    // the paint's mip chains come from the mips worker, as a pixel layer's (the review of 2026-11-16,
+    // own-pixels-mips-block-main-thread): a settled read builds none of them here, a screen pass asks the worker and
+    // shows coarse cells meanwhile, and the screen's filter pass is made again when they land. Tiles with a worker only
+    {
+        const T = await import("./editor/inpaint_tiles.js");
+        if (ed.tileMode && T.chainStats().async) {
+            // a whole change of the paint: none of its tiles has a chain
+            const fresh = () => { const c = mk(W, H), x = c.getContext("2d"); x.drawImage(paintC, 0, 0); x.fillStyle = "rgb(20,200,90)"; x.fillRect(10, 10, 60, 40); L.px = ed.pixels.Layer.fromCanvas(c); ed.markFilterChanged(L); ed.uploaded.baseHash = null; };
+            const keep = L.px;
+            await settle(ed);
+            fresh();
+            T.chainStats(true);
+            const sm = await ed.sampleRegionSettled("image", [0, 0, W, H], 0.25, { forRun: true });
+            const st = T.chainStats();
+            // (the base's edge tiles build their copies here as always: the paint's tiles are the measure, not the count)
+            const kept = () => Array.from(L.px._tiles.values()).filter((t) => t.mips).length;
+            check("mips: a settled read of the picture takes the paint's chains from the worker and keeps none on its tiles", sm && sm.width === W / 4 && st.primed > 0 && kept() === 0 && L.px._tiles.size > 0, { st, kept: kept(), tiles: L.px._tiles.size });
+            await settle(ed);
+            fresh();
+            T.chainStats(true);
+            const prevVp = ed.viewPass;
+            // the scheduler builds the first few chains of a frame here (its budget): none left, as on a frame of 15k
+            const sch = T.chainScheduler(), budget0 = sch.budget;
+            sch.budget = 0;
+            ed.viewPass = { x: 0, y: 0, w: W, h: H, sx: 0.25, sy: 0.25, screen: true };
+            let k0, k1, own;
+            try {
+                own = ed.ownPixelsFor(L, { origin: [0, 0], full: [W / 4, H / 4], scale: 0.25 }, W / 4, H / 4);
+                k0 = ed.filterKey(L, { width: W / 4, height: H / 4 }, false, false);
+            } finally { ed.viewPass = prevVp; sch.budget = budget0; }
+            const st2 = T.chainStats();
+            check("mips: a screen pass of the paint asks the worker and builds nothing here", own && own.width === W / 4 && st2.main === 0 && st2.requested > 0, st2);
+            await ed.mipsSettled();
+            ed.viewPass = { x: 0, y: 0, w: W, h: H, sx: 0.25, sy: 0.25, screen: true };
+            try { k1 = ed.filterKey(L, { width: W / 4, height: H / 4 }, false, false); } finally { ed.viewPass = prevVp; }
+            check("mips: the screen's filter pass is made again when the chains land (its key moves)", k0 !== k1, { k0: k0 && k0.slice(-40), k1: k1 && k1.slice(-40) });
+            L.px = keep; ed.markFilterChanged(L); ed.uploaded.baseHash = null;
+            await settle(ed);
+        }
+    }
+
     // the GPU ran, the twin, the program
     const below = mk(W, H);
     ed.drawLayersInto(below.getContext("2d"), { forRun: true, upTo: ed.layers.indexOf(L) });

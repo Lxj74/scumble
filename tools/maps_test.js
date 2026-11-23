@@ -174,6 +174,7 @@ async function main() {
         clipTargetOf: InpaintEditor.prototype.clipTargetOf,
         clipBaseOf: InpaintEditor.prototype.clipBaseOf,
         passStores: InpaintEditor.prototype.passStores,
+        hasOwnPixels: InpaintEditor.prototype.hasOwnPixels,
         layers: [layer1, filterLayer, clippedLayer],
     };
 

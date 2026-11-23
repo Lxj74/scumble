@@ -846,6 +846,9 @@ export class StackPart {
             if (layer.kind === "filter") {
                 if (!controlOnly && !skip) {
                     add(this.liveMask(layer), 0, 0, this.width, this.height);
+                    // Deep paint's own pixels are read by the pass too (`ownPixelsFor`, the canvas's size): their chains
+                    // from the mips worker, as a pixel layer's (the review of 2026-11-16, own-pixels-mips-block-main-thread)
+                    if (this.hasOwnPixels(layer) && !this.liveStrokeOn(layer)) add(layer.px, 0, 0, this.width, this.height);
                     drawn.add(layer);
                 }
                 continue;
