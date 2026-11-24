@@ -82,7 +82,7 @@ code.
   chain, the post's shape, and the Vercel trap (commit the website with its own identity, never the `DenRakEiw`
   noreply address of this repo, and no `Co-Authored-By` trailer: a second author blocks a Hobby deploy).
 
-## Where things stand (2026-11-20: 0.1.59 released; the Store update open)
+## Where things stand (2026-11-24: 0.1.60 released; the Store update open)
 
 The hand-overs of 2026-10-13 to 2026-11-19 (0.1.47 to 0.1.58) are in `docs/HISTORY.md`, verbatim, under "Where things
 stand, 2026-10-13 to 2026-11-19" (moved on 2026-11-19; the user: "kannst du nochmal die claude.md aufräumen"). Read a
@@ -98,24 +98,16 @@ written down anywhere.
   `rel59-exe` side by side: the one real failure (`skins`, the template rules outside `@layer app`) fixed before the
   tag, the six flakes green one at a time (`rel59r-t`, `rel59r-c`; `docs/TESTING.md`). Built: `dist/Scumble-0.1.59.msix`
   and `dist/store-listing/whats-new-0.1.59.txt`.
-- **Unreleased on `main`, for 0.1.60** (2026-11-23; the user: "arbeite weiter an dem nächsten release"): item 77 steps 1
-  and 2 (the undo history as `this.undoHistory`, the selection as `this.selState`, the document maps as
-  `this.docMaps`, relight's runtime state as `this.relightState`; no visible change but the selection's counter now
-  bumped by a new mask, a cancelled map preview put back under its own kind, and the whole-picture relight's read
-  hiding its layers without a write to their eye, CHANGELOG line), the Realism Pass status line naming the DLSS5 fork
-  (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
-  `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), ten shoulds of item 73 (2026-11-23,
-  CHANGELOG "Fixed, from the code review": six, the distort / warp bake by backward mapping, three 15k perf ones), 57 of
-  item 73's 58 nice (2026-11-24, the same CHANGELOG list). Item 77 is done. **0.1.60 is prepared (2026-11-24; the
-  user: "ok, prepare the release"):** version commit `59d79564` (`## 0.1.60 - 2026-11-24`); built from it in `dist/`: the
-  installer, the zip, `scumble-0.1.60.mcpb` (124 tools), `Scumble-0.1.60.msix` (`win-unpacked` is the Store layout
-  since), `store-listing/whats-new-0.1.60.txt`. Exe gates `rel60-exe` side by side: 42 / 41 PASS, the seven fails the
-  listed side-by-side flakes (log's blink, layered's arena slots, videoframe, clip, generate's cancel, comfyview's
-  focus), all green on the serial reruns `rel60r-t`, `rel60r-c`. The node's editor built in a clone (session scratchpad
-  `node060`, `6371e0c`, not pushed; `--check` ok, node_test PASS). The post `v0-1-60` drafted in `F:\portfolio_web`
-  (`time: "DRAFT"`, uncommitted, tsc ok). **Next:** the release
-  chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
-  the user's pick from the list. `main` is 21 commits ahead of origin (nothing pushed since the move).
+- **0.1.60 is out** (2026-11-24, tag v0.1.60 on `59d79564`, published 13:19:03Z; the user: "ja, mach den release"):
+  item 77 (the editor's core in objects: undo history, selection, document maps, relight state; the host contract
+  checked by tsc), the Realism Pass status line naming the DLSS5 fork (issue #8), ten shoulds and 57 of 58 nice of
+  item 73 (the distort / warp bake by backward mapping, three 15k perf fixes). Exe gates `rel60-exe` side by side,
+  the seven listed flakes green on the serial reruns `rel60r-t`, `rel60r-c`. The post `v0-1-60` is live with hub
+  0.1.60 (`Portfolio_vercel` `e542008`, Vercel success; the manual sync found nothing changed), the MCP Registry has
+  0.1.60 (a new device login, 2026-11-24), the node's editor is pushed (`ComfyUI-InpaintCanvas` `6371e0c`, no
+  pyproject bump), `INPAINT_CANVAS_REF` moved, the reply on #8 posted (naming 0.1.60; the issue stays open until
+  smudgedidit answers). Built: `dist/Scumble-0.1.60.msix` and `dist/store-listing/whats-new-0.1.60.txt`.
+  **Next:** the user's pick from the list.
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
@@ -136,10 +128,10 @@ written down anywhere.
   its own, Settings kept per recipe, requests through curl, the long files split (item 56); 0.1.56 Deep paint;
   0.1.57 Generate the new border after an extend, layers that name themselves (Florence-2), one undo step per result,
   the scope, a frame from a video, the contact shadow, the mannequin; 0.1.58 Stay on surface, the fix of issue #15;
-  0.1.59 above.
+  0.1.59 the assistant's templates, Approve everything and 100 steps; 0.1.60 above.
 - **GitHub:** the branches `main` and `gh-pages`; open issues #14 (item 74, the reply owed) and #8 (the user, 2026-11-23: the fix in our own fork,
   "unter denrakeiw": `DenRakEiw/ComfyUI-DLSS5-Enhancer` `main` carries PR #17's commit `e4f8f84` and a README note
-  `7e672a9`; the status line names the fork from 0.1.60; the reply on #8 approved for after the 0.1.60 release (`dist/issue8_reply.md`); upstream #17 still open); #15 closed 2026-11-19. Local only:
+  `7e672a9`; the status line names the fork from 0.1.60; the reply on #8 posted 2026-11-24, waiting for smudgedidit; upstream #17 still open); #15 closed 2026-11-19. Local only:
   `demo-video` (the private demo-video commits, never pushed), `archive/k2-inflate-z`, six merged
   `worktree-agent-*` branches with their worktrees under `.claude/worktrees/`.
 - **The user's machine:** ComfyUI v0.45.2 since 2026-11-11 (flags `--windows-standalone-build --enable-cors-header
@@ -150,14 +142,11 @@ written down anywhere.
   be gone: download it again then).
 
 **Open: the user's step or word**
-- **The Store update for 0.1.59:** `dist/Scumble-0.1.59.msix` with `dist/store-listing/whats-new-0.1.59.txt` (the
-  user's upload; 0.1.58's was never uploaded, this one replaces it).
-- **The live node folder** to `36c1aac` (a fast-forward from `f7f278f`; it reloads the node in the running ComfyUI).
+- **The Store update for 0.1.60:** `dist/Scumble-0.1.60.msix` with `dist/store-listing/whats-new-0.1.60.txt` (the
+  user's upload; 0.1.58's and 0.1.59's were never uploaded, this one replaces them).
+- **The live node folder** to `6371e0c` (a fast-forward from `f7f278f`; it reloads the node in the running ComfyUI).
 - **The six merged agent worktrees** and their `worktree-agent-*` branches: remove them (asked, no answer; a
   `node_modules` junction goes first with `cmd //c rmdir`).
-- **The reply on issue #8, right after the 0.1.60 release** (the user, 2026-11-23: "ja, nach release ihm schreiben"):
-  the approved text is `dist/issue8_reply.md` (the fork, how to put it in place, asking smudgedidit to report back);
-  name 0.1.60 in it if its status line is the point; leave the issue open until smudgedidit answers.
 - **The reply on issue #14** (item 74).
 - **The user's own test of Stay on surface** on the arm picture (a hand flat on the wall is the hard case); a fix goes
   into the next update. Reaching a part of the surface cut off by what stands in front is not built
