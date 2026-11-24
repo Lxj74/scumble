@@ -106,7 +106,14 @@ written down anywhere.
   (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
   `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), ten shoulds of item 73 (2026-11-23,
   CHANGELOG "Fixed, from the code review": six, the distort / warp bake by backward mapping, three 15k perf ones), 57 of
-  item 73's 58 nice (2026-11-24, the same CHANGELOG list). Item 77 is done. **Next:** the release
+  item 73's 58 nice (2026-11-24, the same CHANGELOG list). Item 77 is done. **0.1.60 is prepared (2026-11-24; the
+  user: "ok, prepare the release"):** version commit `59d79564` (`## 0.1.60 - 2026-11-24`); built from it in `dist/`: the
+  installer, the zip, `scumble-0.1.60.mcpb` (124 tools), `Scumble-0.1.60.msix` (`win-unpacked` is the Store layout
+  since), `store-listing/whats-new-0.1.60.txt`. Exe gates `rel60-exe` side by side: 42 / 41 PASS, the seven fails the
+  listed side-by-side flakes (log's blink, layered's arena slots, videoframe, clip, generate's cancel, comfyview's
+  focus), all green on the serial reruns `rel60r-t`, `rel60r-c`. The node's editor built in a clone (session scratchpad
+  `node060`, `6371e0c`, not pushed; `--check` ok, node_test PASS). The post `v0-1-60` drafted in `F:\portfolio_web`
+  (`time: "DRAFT"`, uncommitted, tsc ok). **Next:** the release
   chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
   the user's pick from the list. `main` is 21 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
