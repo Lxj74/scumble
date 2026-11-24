@@ -1651,6 +1651,28 @@ async function retouchRouteCases(js) {
             }
         }
         {
+            // (review 2026-11-16, nice) the same mid-call recovery with the rows as a raw SharedArrayBuffer (Px accepts one):
+            // the rest of the rows go to the JS twin as views (it threw on rgba.buffer), and the twin takes one itself
+            const p = K.rustPx();
+            const sab = new SharedArrayBuffer(larInit.length);
+            new Uint8Array(sab).set(larInit);
+            const origIn = p._in;
+            let copies = 0, err = null;
+            p._in = function (arena, src, bytes) {
+                if (src && src.buffer === sab) { copies++; if (copies === 2) return this.alloc(0xffff0000); }
+                return origIn.call(this, arena, src, bytes);
+            };
+            try { K.limitAlphaRows(sab, rtdMap, 16, 16, larXf, 0, 0, larW, larH, rtdLim, rtdSnap, rtdGuide, null); } catch (e) { err = e; }
+            const sab2 = new SharedArrayBuffer(larInit.length);
+            new Uint8Array(sab2).set(larInit);
+            let err2 = null;
+            try { js.limitAlphaRows(sab2, rtdMap, 16, 16, larXf, 0, 0, larW, larH, rtdLim, rtdSnap, rtdGuide, null); } catch (e) { err2 = e; }
+            if (err || err2 || !eqBytes(new Uint8Array(sab), want.lar) || !eqBytes(new Uint8Array(sab2), want.lar)) {
+                ok = false;
+                detail = `limitAlphaRows on a SharedArrayBuffer: ${err || err2 || firstDiff(new Uint8Array(sab), want.lar)}`;
+            }
+        }
+        {
             const p = K.rustPx(), i0 = K.pxInstances();
             p.guidedFar = function () { return this.alloc(0xffff0000); };
             const got = K.guidedFar(gfRaw, 16, 12, gfGrey, 32, 24, 2, 1e-3, -10, 10);

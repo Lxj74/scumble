@@ -837,6 +837,18 @@ try {
     if (ed.promptText !== "jacket from @img1, style of @img?" + A) throw new Error("A hidden: " + ed.promptText);
     const hid = await refused(/hidden reference/, "a hidden reference's token");
     if (!hid.msg.includes('"refA"') || !hid.msg.includes("@img?" + A)) throw new Error("the refusal names neither the layer nor the token: " + hid.msg);
+    // (review 2026-11-16, nice) a box whose description names the hidden layer: the local route refuses it too (it sent
+    // "@img?<id>" as words), as the API route's pluginBoxes does
+    {
+        const keepData = ed.pluginData, keepCount = host.plugins.countBoxes;
+        ed.pluginData = { ...(ed.pluginData || {}), boxes: { boxes: [{ id: "hat_1", kind: "new", rect: [10, 10, 60, 60], desc: "the hat from @img?" + A }] } };
+        host.plugins.countBoxes = () => 1;
+        let said = "";
+        try { host.localBoxPlan(ed, null); } catch (e) { said = String(e.message || e); }
+        finally { ed.pluginData = keepData; host.plugins.countBoxes = keepCount; }
+        if (!/Box hat_1 names the reference layer "refA"/.test(said) || !/Nothing was sent/.test(said)) throw new Error("the local route's box plan did not refuse a parked token: " + said);
+        out.localParked = said;
+    }
     await c("set_layer", { layer: A, visible: true });
     if (ed.promptText !== P0 || ed.negativeText !== N0) throw new Error("A shown again: " + JSON.stringify([ed.promptText, ed.negativeText]));
     out.parked = hid;

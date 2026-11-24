@@ -167,13 +167,19 @@ export const HostUpscalePart = {
         // the run's notes (Comfy Router: who served it, what it left out) after the landing's own line, as Generate does
         const runNotes = Array.isArray(res.notes) ? res.notes.map(String) : [];
         const sayNotes = () => { if (runNotes.length) editor.setStatus(`${editor.status} ${runNotes.join(" ")}`, notesKind(editor, runNotes)); };
+        // a tab closed during the run or the landing: nothing lands in its destroyed editor (no resize, no upload)
+        const gone = () => !!editor._destroyed || !this._editors.includes(editor);
+        const closedAnswer = { scope, provider: r.provider, recipe: r.id, factor, seconds: res.seconds, closed: true, note: "the document was closed; nothing landed." };
         try {
+            if (gone()) return closedAnswer;
             if (scope === "selection") {
                 const info = prep.info;
                 const [x, y, w, h] = info.bbox;
                 const fin = await finishResultAsync(editor, info, prep.sel, res.bytes, res.mime);
+                if (gone()) return closedAnswer;
                 const stamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 17);
                 const ref = await this.uploadResult(fin.blob, `n${editor.node.id}_upscale_${stamp}.png`);
+                if (gone()) return closedAnswer;
                 // the prompt the upscale sent, its tokens already written as layer names
                 const via = viaLine(r, label, res.seconds);
                 await editor.addResults([{ filename: ref.filename, subfolder: ref.subfolder, type: ref.type, x, y, width: w, height: h, align: fin.align, canvas_node: editor.node.id, provider: r.provider, seed: answeredSeed(res), via, prompt: r.usesPrompt ? texts.prompt : "", negative: r.usesPrompt ? texts.negative : "", refs: null }]);
@@ -184,7 +190,7 @@ export const HostUpscalePart = {
                 sayNotes();
                 return { scope, provider: r.provider, recipe: r.id, factor, seconds: res.seconds, x, y, w, h, info: res.info || null, note: texts.note, notes: runNotes };
             }
-            const land = await this.landWholePicture(editor, res.bytes, res.mime, { label, seconds: res.seconds, W, H, note: texts.note });
+            const land = await this.landWholePicture(editor, res.bytes, res.mime, { label, seconds: res.seconds, W, H, note: texts.note, gone });
             sayNotes();
             return { scope, provider: r.provider, recipe: r.id, factor, seconds: res.seconds, from: [W, H], width: land.width, height: land.height, answered: land.answered, info: res.info || null, note: texts.note, notes: runNotes };
         } finally {
@@ -289,6 +295,18 @@ export const HostUpscalePart = {
         const W = editor.width, H = editor.height;
         const size = this.upscaleSizeRefusal(r, W, H, factor, "picture");
         if (size) throw new Error(size);
+        // a file the server lacks (issue #4) refused before the picture is encoded and uploaded, and this recipe's own
+        // Settings rows taken now: a recipe picked during the upload re-keys editor.settings to its rows (as queueGenerate)
+        {
+            const lacks = this.missingFilesRefusal(editor, r);
+            if (lacks) throw new Error(lacks);
+        }
+        /** @type {Record<string, any>} */
+        const rowsNow = {};
+        for (const st of Array.isArray(r.settings) ? r.settings : []) {
+            const e = st && editor.settings ? editor.settings[String(st.index)] : null;
+            if (e && (!e.target || e.target === `${r.id}/${st.node}:${st.input}`)) rowsNow[String(st.index)] = { ...e };
+        }
         const by = factor != null ? `${factor}×` : "the model's own factor";
         // `resizes`: the landing resizes the document (see runUpscale)
         const token = { provider: "comfyui", label, started: Date.now(), editor, resizes: true };
@@ -329,11 +347,7 @@ export const HostUpscalePart = {
                     }, 250);
                     upload.then((v) => done(resolve, v), (err) => done(reject, err));
                 });
-                {
-                    const lacks = this.missingFilesRefusal(editor, r);   // a file the server lacks (issue #4): refused before the queue
-                    if (lacks) throw new Error(lacks);
-                }
-                const prompt = comfyprompt.wholePicturePrompt(r, ref, factor, editor.settings);
+                const prompt = comfyprompt.wholePicturePrompt(r, ref, factor, rowsNow);
                 res = await this.comfyPictureRun(editor, prompt, comfyprompt.WHOLE_OUTPUT, { label, token, front: false, deadline, timeoutMs: 1800000 });
                 // a Cancel during the answer's fetch (comfyPictureRun stops watching the token once the job answered):
                 // honoured here, so nothing lands, as cancel_run promises

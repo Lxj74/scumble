@@ -772,11 +772,16 @@ export class CompositePart {
         let before = null, pushed = false;
         try {
             this.setStatus("Flattening ...");
+            // a relight still settling bumps the counters below by itself: settled first, so they hold only the user's
+            if (this.relightSettled) await this.relightSettled();
+            if (!this.base || !this.layers.length) return;
             before = this.snapshot({ kind: "canvas" });
             // what the step and the composite are of: an edit or a landing result during the encode and the upload is in
             // neither, so the commit below would drop it (as in turnDocumentNow)
             const gen = this.historyGen, ids = this.layers.map((l) => l.id).join(",");
-            let ver = this.compositeVersion;
+            // the composite as the step records it: a solo, an eye, an opacity or a blend changed during the encode (none
+            // of them moves historyGen) leaves it, and the flatten is refused rather than baking that change in
+            const ver = this.compositeVersion;
             // E2: the upload and the new base from the same bands, without a canvas of the picture
             let px = null, ref, hash;
             const banded = await this.encodeComposite({ forRun: true }, {
@@ -787,12 +792,10 @@ export class CompositePart {
                 },
             });
             if (banded) {
-                ver = this.compositeVersion;   // encodeComposite checked its own bands; from here the upload's wait
                 hash = banded.hash;
                 ref = await uploadBlob(banded.blob, `n${this.node.id}_base_${hash}.png`);
             } else {
                 if (px) px.release();
-                ver = this.compositeVersion;
                 const flat = this.flattenToCanvas({ forRun: true });
                 px = this.pixels.Layer.fromCanvas(flat);   // C6 (d): not the upload decoded again
                 ({ ref, hash } = await uploadCanvas(flat, `n${this.node.id}_base`));
@@ -806,6 +809,7 @@ export class CompositePart {
             pushed = true;
             this.pushUndoSnapshot(before, { tracked: true, label: "Flatten" });
             this.layers = this.layers.filter((l) => this.isControl(l) || this.isReference(l));
+            this._solo = null;   // the soloed layers are in the base now
             this.activeLayerId = null;
             this.refsMutated();
             this.base = { ref, px };

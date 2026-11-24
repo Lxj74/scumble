@@ -529,11 +529,17 @@ async function main() {
     const { limitAlphaRows } = await import(pathToFileURL(path.join(ROOT, "renderer", "editor", "inpaint_limit.js")).href);
     const { makeMap } = await import(pathToFileURL(path.join(ROOT, "renderer", "editor", "inpaint_maps.js")).href);
 
-    // Test 1: Full range limit leaves alpha untouched
+    // Test 1: Full range limit leaves alpha untouched (a depth limit with its map)
     const buf1 = new Uint8Array([100, 150, 200, 255, 50, 60, 70, 180]);
-    limitAlphaRows(buf1, 0, 0, 2, 1, { source: "depth", lo: 0, hi: 1, fLo: 0, fHi: 0, invert: false }, null);
+    limitAlphaRows(buf1, 0, 0, 2, 1, { source: "depth", lo: 0, hi: 1, fLo: 0, fHi: 0, invert: false }, { data: new Uint16Array(4), w: 2, h: 2 });
     assert.strictEqual(buf1[3], 255);
     assert.strictEqual(buf1[7], 180);
+    // Test 1b (review 2026-11-16, nice): a depth limit at 0..1 without its map is still nothing: alpha 0 (the shortcut
+    // came first and drew the fill everywhere)
+    const buf1b = new Uint8Array([100, 150, 200, 255, 50, 60, 70, 180]);
+    limitAlphaRows(buf1b, 0, 0, 2, 1, { source: "depth", lo: 0, hi: 1, fLo: 0, fHi: 0, invert: false }, null);
+    assert.strictEqual(buf1b[3], 0);
+    assert.strictEqual(buf1b[7], 0);
 
     // Test 2: Depth limit with missing map sets alpha to 0
     const buf2 = new Uint8Array([100, 150, 200, 255, 50, 60, 70, 180]);

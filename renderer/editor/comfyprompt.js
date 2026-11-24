@@ -80,7 +80,7 @@ export function wholePictureRefusal(r) {
  * @param {any} r a ComfyUI upscale recipe as normalize() serves it
  * @param {{ filename: string, subfolder?: string, type?: string }} ref the stored picture
  * @param {number | null} factor
- * @param {Record<string, { value?: any } | undefined> | null} [settings]
+ * @param {Record<string, { value?: any, target?: string } | undefined> | null} [settings]
  * @returns {Record<string, { class_type: string, inputs: Record<string, any>, _meta?: any }>}
  */
 export function wholePicturePrompt(r, ref, factor, settings) {
@@ -97,6 +97,8 @@ export function wholePicturePrompt(r, ref, factor, settings) {
         if (!s || s.node === r.canvas) continue;
         const entry = settings ? settings[String(s.index)] : undefined;
         const node = prompt[s.node];
+        // a row of another recipe under the same index (settings re-keyed by a recipe picked meanwhile) is not this one's
+        if (entry && entry.target && entry.target !== `${r.id}/${s.node}:${s.input}`) continue;
         if (entry && entry.value != null && node && node.inputs) node.inputs[s.input] = entry.value;
     }
     const target = r.factor && typeof r.factor.input === "string" ? r.factor.input : "";

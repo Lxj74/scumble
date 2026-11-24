@@ -62,11 +62,13 @@ export function limitStage(src, out, limitIn, info = {}, def = null) {
     if (!limitIn) return out;
     const limit = normalizeStoredLimit(limitIn);
     if (!limit) return out;
-    if (limit.lo <= 0 && limit.hi >= 1 && !limit.invert) return out;
-    if (limit.source === "depth" && (!info || !info.maps || !info.maps.depth)) {
+    // a depth limit without a depth map limits to nothing, whatever its range (0..1 drew the filter everywhere); a
+    // full range is no limit only while the limit itself is not being shown
+    if (limit.source === "depth" && (!info || !info.maps || !info.maps.depth || !info.maps.depth.data)) {
         if (info) info.limitMissing = true;
         return src;
     }
+    if (limit.lo <= 0 && limit.hi >= 1 && !limit.invert && !(info && info.limitView)) return out;
 
     // Fills always carry the weight in their alpha (\`def.over\`); a filter does so whenever its result is
     // drawn over the picture rather than becoming the chain's surface (\`info.limitOver\`, set by the
@@ -229,14 +231,15 @@ export function limitAlphaRows(rgba, x0, y0, w, h, limit, map, col = null) {
     const lim = normalizeStoredLimit(limit);
     if (!lim) return;
 
-    // Shortcut: full range and not inverted leaves alpha untouched
-    if (lim.lo <= 0 && lim.hi >= 1 && !lim.invert) return;
-
-    // If depth limit but map or map.data is missing, effect is zero -> alpha becomes 0
+    // If depth limit but map or map.data is missing, effect is zero -> alpha becomes 0 (before the full-range
+    // shortcut: a depth limit at 0..1 without a map is still nothing)
     if (lim.source === "depth" && (!map || !map.data)) {
         for (let i = 3; i < rgba.length; i += 4) rgba[i] = 0;
         return;
     }
+
+    // Shortcut: full range and not inverted leaves alpha untouched
+    if (lim.lo <= 0 && lim.hi >= 1 && !lim.invert) return;
 
     const m = (map && map.data) ? passToMap(map, 1) : null;
     const snap = (map && map.guide) ? snapParams(map.meta?.snap?.strength) : null;

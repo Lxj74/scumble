@@ -203,6 +203,8 @@ export function activate(scumble) {
     });
     scumble.tools.register(boxTool.tool);
     scumble.events.on("removed", (ev) => { if (ev.doc) { boxTool.forget(ev.doc.id); panels.delete(ev.doc.id); } });
+    // another tab in front: a description typed into a box of the last one is kept, and its box closes
+    scumble.events.on("activate", () => boxTool.closeEditor(true));
 
     // ---- the picture changed its geometry: the boxes move with it ----------------------------------------------------
     scumble.events.on("geometry", (ev) => {

@@ -738,27 +738,42 @@ export class FiltersPart {
         this.notifyChanged();
     }
 
-    async loadLutFile(layer, file) {
-        if (!file) return;
+    /**
+     * A LUT or grain plate file read, uploaded and set on the layer: an edit Ctrl+Z waits for (trackEdit), set on the
+     * layer of that id as it is when the file is in (an undo meanwhile may have put a copy in its place), not at all when
+     * the layer or the tab is gone.
+     */
+    loadLutFile(layer, file) {
+        if (!file) return Promise.resolve();
+        return this.trackEdit(this.loadLutFileNow(layer, file));
+    }
+
+    async loadLutFileNow(layer, file) {
         try {
             this.setStatus(`Reading ${file.name} ...`);
             const lut = lutFromCube(await file.text());
             const up = await uploadCanvas(lutToCanvas(lut), `n${this.node.id}_lut`);
-            this.pushUndo({ kind: "filter", id: layer.id, label: "Load LUT" });
+            layer = this.liveLayer(layer);
+            if (!layer) { this.setStatus(`${file.name}: the layer is gone, nothing loaded.`); return; }
+            this.pushUndoSnapshot(this.snapshot({ kind: "filter", id: layer.id }), { tracked: true, label: "Load LUT" });
             layer.lut = { name: file.name, size: lut.size, ref: up.ref };
             layer._lutData = lut;
             if (/^LUT/.test(layer.name || "") || !layer.name) layer.name = file.name.replace(/\.cube$/i, "");
             this.markFilterChanged(layer);
             this.renderLayers();
-            this.setStatus(`${file.name} loaded (${lut.size}³ LUT).`);
+            this.setStatus(`${file.name} loaded (${lut.size}³ LUT${lut.from ? `, resampled from its ${lut.from}³` : ""}).`);
         } catch (err) {
             console.error(err);
             this.setStatus("Could not load the LUT: " + (err.message || err), failKind(err));
         }
     }
 
-    async loadPlateFile(layer, file) {
-        if (!file) return;
+    loadPlateFile(layer, file) {
+        if (!file) return Promise.resolve();
+        return this.trackEdit(this.loadPlateFileNow(layer, file));
+    }
+
+    async loadPlateFileNow(layer, file) {
         try {
             this.setStatus(`Uploading ${file.name} ...`);
             const ext = ((file.name || "").match(/\.[a-z0-9]+$/i) || [".png"])[0];
@@ -766,7 +781,9 @@ export class FiltersPart {
             const ref = await uploadBlob(file, stem + ext, { overwrite: false });
             const img = await loadImageEl(viewUrl(ref));
             const st = plateStats(img);
-            this.pushUndo({ kind: "filter", id: layer.id, label: "Load grain plate" });
+            layer = this.liveLayer(layer);
+            if (!layer) { this.setStatus(`${file.name}: the layer is gone, nothing loaded.`); return; }
+            this.pushUndoSnapshot(this.snapshot({ kind: "filter", id: layer.id }), { tracked: true, label: "Load grain plate" });
             layer.plate = { name: file.name, ref, w: img.naturalWidth, h: img.naturalHeight, mean: Math.round(st.mean * 10) / 10, std: Math.round(st.std * 10) / 10 };
             layer._plateImg = img;
             this.markFilterChanged(layer);
@@ -776,6 +793,12 @@ export class FiltersPart {
             console.error(err);
             this.setStatus("Could not load the plate: " + (err.message || err), failKind(err));
         }
+    }
+
+    /** The layer of `layer`'s id in the document now (an undo of a layers step puts copies in place), or null. */
+    liveLayer(layer) {
+        if (this._destroyed || !layer) return null;
+        return this.layers.find((l) => l.id === layer.id) || null;
     }
 
     removePlate(layer) {

@@ -390,6 +390,16 @@ JS = r"""
     const diffNoMap = diffStat(flatNoMap, base1600, 1600, 1200);
     check("Case 4 output equals picture without layer", diffNoMap.max === 0, diffNoMap);
 
+    // (review 2026-11-16, nice) the range widened to 0..1 is still a depth limit without its map: nothing drawn
+    await commands.run("set_filter", { doc: ed3.node.id, layer: flDepth.id, params: { limit: { source: "depth", lo: 0, hi: 1 } } });
+    await settle(ed3);
+    const flatFull = ed3.flattenToCanvas({ forRun: true });
+    const lastFull = ed3._lastFilterInfoBySite && ed3._lastFilterInfoBySite.filteredCanvas;
+    const diffFull = diffStat(flatFull, base1600, 1600, 1200);
+    check("Case 4b a depth limit at 0..1 without a map draws nothing and says so", diffFull.max === 0 && lastFull && lastFull.limitMissing === true, { diffFull, missing: lastFull && lastFull.limitMissing });
+    await commands.run("set_filter", { doc: ed3.node.id, layer: flDepth.id, params: { limit: { source: "depth", lo: 0.2, hi: 0.8 } } });
+    await settle(ed3);
+
     // Case 5: setMap -> effect appears with no manual refresh
     const u16DocDepth = new Uint16Array(1600 * 1200);
     for (let y = 0; y < 1200; y++) {

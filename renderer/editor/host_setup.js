@@ -156,6 +156,14 @@ export const HostSetupPart = {
         const d = editor.pluginData && editor.pluginData.boxes;
         const list = held > 0 && d && Array.isArray(d.boxes) ? d.boxes : [];
         if (!list.length) return { boxes: fresh ? [] : null, notes: [], dropped: [], goes: !fresh && !!(editor.getBounds && editor.getBounds()) };
+        // a box token parked on a reference layer that was hidden or removed (@img?<id>): refused as the API route
+        // refuses it (pluginBoxes), not sent to the model as the words "@img?L12"
+        for (const b of list) {
+            const m = /@img\?(L[0-9a-z]+)(?![\w-])/.exec(String((b && b.desc) || ""));
+            if (!m) continue;
+            const l = (editor.layers || []).find((x) => x.id === m[1]);
+            throw refusal(`Box ${b.id || ""} names ${l ? `the reference layer "${l.name}"` : "a reference layer that was removed"}, which is not a reference picture of this run: show it or take the token out. Nothing was sent.`, "warn");
+        }
         const p = promptPayload(list, editor.refLayersFor(refIds));
         const f = fresh ? comfyprompt.newImageBoxes(p.boxes) : { boxes: p.boxes, dropped: [] };
         return { boxes: f.boxes, notes: p.notes, dropped: f.dropped, goes: f.boxes.length > 0 };

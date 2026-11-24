@@ -103,6 +103,14 @@ async function main() {
             check("the Settings row and the factor are written, nothing else", eq(diffs.sort(), want.sort()), short(diffs));
             check("the recipe's own graph is untouched", eq(r, before));
             // without a factor (an upscale model, or the graph's own) and without settings: the graph's values
+            // (review 2026-11-16, nice) a row of another recipe under the same index (the settings re-keyed by a recipe
+            // picked meanwhile) is not written into this graph; a row of this recipe's target is
+            const foreign = C.wholePicturePrompt(r, REF, null, { 1: { value: "flux-2-klein-base-9b.safetensors", target: "flux2_klein_local/unet:unet_name" } });
+            const mineTarget = `${r.id}/${(r.settings || [])[0] && r.settings[0].node}:${(r.settings || [])[0] && r.settings[0].input}`;
+            const own = C.wholePicturePrompt(r, REF, null, { 1: { value: rtx ? "LOW" : "x.pth", target: mineTarget } });
+            check("another recipe's row under the same index is left out, this recipe's own is written", rtx
+                ? foreign.rtx.inputs.quality === "ULTRA" && own.rtx.inputs.quality === "LOW"
+                : foreign.loader.inputs.model_name === "4x-UltraSharp.pth" && own.loader.inputs.model_name === "x.pth", short(rtx ? [foreign.rtx.inputs, own.rtx.inputs] : [foreign.loader.inputs, own.loader.inputs]));
             const plain = C.wholePicturePrompt(r, REF, null, null);
             check("factor null and no settings: the graph's own values", rtx
                 ? plain.rtx.inputs["resize_type.scale"] === 2 && plain.rtx.inputs.quality === "ULTRA"

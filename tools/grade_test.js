@@ -343,6 +343,17 @@ async function main() {
         const want = new Float32Array(cube(4, rnd).trim().split("\n").slice(1).flatMap((l) => l.split(" ").map(Number)).map((v) => (v < 0 ? 0 : v > 1 ? 1 : v)));
         assert.deepEqual(Array.from(plain.data), Array.from(want), "the default domain keeps the outputs as written");
         assert.deepEqual(Array.from(written.data), Array.from(want), "DOMAIN 0..1 written out is the default");
+
+        // (review 2026-11-16, nice) a lattice above 128 (up to a spec-valid 256) is resampled to the 128 the layer's strip holds (a
+        // 65,536 px wide canvas draws nothing), an identity stays one; a size outside 2..256 is refused in words
+        const { LUT_MAX } = await import(pathToFileURL(path.join(ROOT, "renderer", "editor", "inpaint_filters.js")).href);
+        const big = lutFromCube(cube(132, (r, g, b) => [r, g, b]));   // above LUT_MAX (a 256 text is too long for a test string)
+        const bigRow = redRow(big);
+        assert.ok(big.size === LUT_MAX && big.from === 132 && big.data.length === LUT_MAX ** 3 * 3 && bigRow.every((v, i) => Math.abs(v - i / (LUT_MAX - 1)) < 1e-5), `a 132 identity resampled to ${big.size}: ${bigRow.slice(0, 4)}`);
+        assert.ok(LUT_MAX * LUT_MAX <= 65535, "its strip (size * size wide) fits a canvas");
+        for (const bad of [-2, 1, 257]) {
+            assert.throws(() => lutFromCube(`LUT_3D_SIZE ${bad}\n0 0 0\n`), /LUT_3D_SIZE .* \(2 to 256\)/, `refused: LUT_3D_SIZE ${bad}`);
+        }
         assert.ok(want.some((v) => v === 0) && want.some((v) => v === 1) && want.some((v) => v > 0 && v < 1), "the default case holds clamped and inner values");
     }
     console.log("  [ok] lutFromCube: DOMAIN is the lattice's input range (constant, in^2, negative minimum, default)");

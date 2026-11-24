@@ -529,6 +529,8 @@ export const HostPresetsPart = {
         for (const t of this.settingTargets()) {
             const entry = editor.settings[String(t.index)];
             if (!entry || entry.value == null || entry.value === "") continue;
+            const tkey = /** @type {any} */ (t).key;
+            if (entry.target && tkey && entry.target !== tkey) continue;   // another recipe's row under this index
             if (up.has(String(t.node.id))) continue;
             const k = editor.settingKind(t);
             if (k.kind !== "combo" || !k.options.length) continue;

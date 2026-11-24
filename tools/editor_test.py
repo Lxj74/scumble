@@ -14433,6 +14433,33 @@ if (!out.kept || !out.baseKept || out.flattenPushed || !/changed while/.test(out
 if (!out.flattenedAfter) throw new Error("a plain Flatten did not flatten: " + JSON.stringify(out));
 return out;
 """),
+    # review 2026-11-16 (nice) tiles/flatten-overwrites-composite-version: a layer hidden (no history step, only the
+    # composite moves) while Flatten encodes is not baked in: Flatten refuses, the layers stay
+    ("flatten_refuses_when_a_layer_is_hidden_during_its_encode", """
+const doc = await run("new_document");
+const ed = ednow(doc.id);
+host.shell.activate(ed);
+await run("new_canvas", { width: 320, height: 240, doc: doc.id });
+const L = await run("add_paint_layer", { doc: doc.id });
+await run("select_rect", { x: 30, y: 30, w: 100, h: 80, doc: doc.id });
+ed.fillSelection();
+await run("select_none", { doc: doc.id });
+const base0 = ed.base;
+const orig = ed.encodeComposite;
+ed.encodeComposite = async function (...args) {
+    const r = await orig.apply(this, args);
+    const l = this.layers.find((x) => x.id === L.id);
+    l.visible = false;
+    this.uploaded.baseHash = null;   // what the eye does: the composite moves, no history step
+    return r;
+};
+try { await ed.flattenNow(); } finally { delete ed.encodeComposite; }
+const out = { layers: ed.layers.length, baseKept: ed.base === base0, said: ed.status, flattenPushed: ed.undo.some((s) => s.label === "Flatten") };
+host.shell.activate(ednow(window.__t));
+await run("close_document", { doc: doc.id, force: true });
+if (out.layers !== 1 || !out.baseKept || out.flattenPushed || !/changed while/.test(out.said || "")) throw new Error("Flatten baked in a layer hidden during its encode: " + JSON.stringify(out));
+return out;
+"""),
     # canvas-tools/bucket-fill-untracked-undo-race: Ctrl+Z pressed while the bucket floods waits for the fill and takes
     # it back; the step below and its redo are not lost
     ("an_undo_during_a_bucket_fill_waits_for_it", """

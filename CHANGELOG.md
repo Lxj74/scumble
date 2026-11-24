@@ -78,6 +78,26 @@ the section for its version; `docs/` and the commit history hold the technical d
   - After a crop, a turn or a flip, `sample_depth` reads the depth at the point you name, and a depth map that followed
     a turn is no longer reported as stale. Surface maps with an infinite or undefined point no longer flatten the
     whole map.
+  - PSD, ORA and TIFF files dropped on the Layers or References list are added (they were ignored without a word), and
+    the file pickers offer PSD and ORA.
+  - A box's description being typed on the canvas closes with its tab, and is kept when another tab comes to the front;
+    it no longer hangs over the next tab or writes into a closed one.
+  - *Flatten* is refused when a layer is hidden, soloed or changed in opacity or blend while it runs, instead of baking
+    that change in.
+  - A Colour LUT layer takes a `.cube` file of size 256 (resampled to 128); a size outside 2 to 256 is refused in words.
+    A LUT or grain plate still loading waits for Ctrl+Z, and lands on the layer as it is then.
+  - A depth limit without a depth map limits the filter to nothing at any range (at 0..1 it drew it everywhere), and a
+    limit shown as its mask stays shown at 0..1.
+  - A depth map made from surface maps of a picture that has changed since says it is stale.
+  - ORA files: a layer whose name holds `x='800'` or a `>` opens at its own place (it moved, or was left out).
+  - An upscale, an edit or *Generate new* through an API provider that answers after its tab was closed lands
+    nothing and writes no file. A whole-picture upscale on your ComfyUI checks for missing model files before it
+    uploads the picture, and never takes another recipe's Settings row.
+  - A box naming a hidden or removed reference layer is refused on your ComfyUI too, as on an API provider, instead of
+    sending its token to the model as words.
+  - Film looks with a part switched off (Black and white's Structure at 0) no longer fall back to the slow path on the
+    GPU, and the display keeps within its GPU memory budget while it falls back to Canvas 2D.
+  - A TIFF export that runs short of memory in the fast kernels falls back to the slower ones instead of failing.
 
 ## 0.1.59 - 2026-11-20
 

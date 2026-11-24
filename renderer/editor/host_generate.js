@@ -121,8 +121,12 @@ export const HostGeneratePart = {
         }
         // the document stays held until the new base is in (endRun)
         let c, swap;
+        // a tab closed during the run or the decode: nothing lands in its destroyed editor
+        const gone = () => !!editor._destroyed || !this._editors.includes(editor);
         try {
+            if (gone()) return { provider: r.provider, seconds: res.seconds, closed: true, note: "the document was closed; nothing landed." };   // the finally ends the run
             const img = await bytesToImage(res.bytes, res.mime);
+            if (gone()) return { provider: r.provider, seconds: res.seconds, closed: true, note: "the document was closed; nothing landed." };   // the finally ends the run
             c = document.createElement("canvas");
             c.width = img.naturalWidth || img.width;
             c.height = img.naturalHeight || img.height;

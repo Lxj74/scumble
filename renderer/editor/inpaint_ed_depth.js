@@ -227,6 +227,9 @@ export class DepthPart {
                     }
                     return existing;
                 }
+                // points of a picture that has changed since (painted over, replaced): the depth map made from them is
+                // as stale as they are, so it carries their fingerprint and says so (before: stamped fresh)
+                const pointsStale = !!(pm.meta && pm.meta.fp) && (await this.mapStale("points")).stale;
                 const t0 = performance.now();
                 const rw = pm.w, rh = Math.max(1, Math.round(pm.w * H / W));
                 const nm = this.maps.normals;
@@ -244,7 +247,7 @@ export class DepthPart {
                 const ms = Math.round(performance.now() - t0);
                 const snapStrength = edges != null ? Math.max(0, Math.min(100, Math.round(+edges))) : SNAP_DEFAULT;
                 const meta = {
-                    fp, source: "points", lo: poolRes.lo, hi: poolRes.hi, rawBounds: [got.lo, got.hi],
+                    fp: pointsStale ? pm.meta.fp : fp, source: "points", lo: poolRes.lo, hi: poolRes.hi, rawBounds: [got.lo, got.hi],
                     provider: (pm.meta && pm.meta.provider) || "", model: (pm.meta && pm.meta.normalsModel) || "MoGe-2",
                     ms: 0, totalMs: ms, raw: got.raw, rw, rh, snap: { strength: snapStrength },
                 };
@@ -255,8 +258,10 @@ export class DepthPart {
                     return null;
                 }
                 this._depthOverlayCanvas = null;
-                this._depthStale = false;
-                this.setStatus(`Depth map ${gw}x${gh} from the surface maps' points (MoGe-2) in ${(ms / 1000).toFixed(2)} s.`);
+                this._depthStale = pointsStale;
+                this.setStatus(pointsStale
+                    ? `Depth map ${gw}x${gh} from the surface maps' points (MoGe-2), which are of the picture before its last changes: compute the surface maps again for a depth map of the picture as it is.`
+                    : `Depth map ${gw}x${gh} from the surface maps' points (MoGe-2) in ${(ms / 1000).toFixed(2)} s.`, pointsStale ? "warn" : undefined);
                 return map;
             } catch (err) {
                 console.error("Depth from points failed:", err);

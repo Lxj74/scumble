@@ -392,10 +392,16 @@ export const HostProviderPart = {
             // an adapter that knows its answer covers the crop exactly (Magnific's preset shapes, Image Expand) says so
             if (res && res.info && res.info.fit === "stretch") info.fit = "stretch";
             // the answer decoded and stitched in the stitch worker, the region (for a colour match) from the tile workers
+            // a tab closed during the run or the stitch: nothing lands in its destroyed editor, no file is written for it
+            const gone = () => !!editor._destroyed || !this._editors.includes(editor);
+            const closed = { provider: r.provider, seconds: res.seconds, closed: true, note: "the document was closed; nothing landed." };
+            if (gone()) return closed;
             const fin = await finishResultAsync(editor, info, sel, res.bytes, res.mime, area);
+            if (gone()) return closed;
             const { blob, align } = fin;
             const stamp = new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 17);
             const ref = await this.uploadResult(blob, `n${editor.node.id}_result_${stamp}.png`);
+            if (gone()) return closed;
             editor.setStatus(`${label} answered after ${Math.round(res.seconds)} s${res.info && res.info.width ? ` (${res.info.width} × ${res.info.height})` : ""}.`);
             const cutout = info.keepAlpha ? fin.cutout : false;
             await editor.addResults([{ filename: ref.filename, subfolder: ref.subfolder, type: ref.type, x, y, width: w, height: h, align, canvas_node: editor.node.id, provider: r.provider, seed: answeredSeed(res), via: viaLine(r, label, res.seconds, res.loras), ...sentTexts(snap) }]);

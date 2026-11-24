@@ -1150,6 +1150,30 @@ async function twinFile(file) {
         check("stored and deflated pictures come back as written", Buffer.from(doc.layers[0].png).toString("latin1").endsWith("bg") && Buffer.from(inG.png).toString("latin1").endsWith("in") && Buffer.from(top.png).toString("latin1").endsWith("top"));
         check("an unknown composite-op, a missing picture and the group are named", doc.notes.some((n) => /Odd \(svg:odd-blend\)/.test(n)) && doc.notes.some((n) => /1 layer without a picture left out \("Lost"\)/.test(n)) && doc.notes.some((n) => /1 group flattened/.test(n)), short(doc.notes));
         check("an ORA with a part left out is a loss", doc.lossy === true, short(doc.notes));
+        // (review 2026-11-16, nice) an attribute inside a name is part of the name, and a ">" inside a quoted name (valid
+        // XML, written by other programs) does not end the tag
+        {
+            const xml2 = `<?xml version='1.0' encoding='UTF-8'?>
+<image version="0.0.3" w="64" h="48">
+  <stack>
+    <layer name="ref x='800' src='none.png'" src="data/a.png" x="3" y="4" />
+    <layer name="Fg > Bg" src="data/b.png" x="5" y="6" />
+    <layer name="Background" src="data/bg.png" x="0" y="0" />
+  </stack>
+</image>`;
+            const f2 = zip([
+                { name: "mimetype", data: "image/openraster" },
+                { name: "stack.xml", data: xml2 },
+                { name: "data/a.png", data: png("a") },
+                { name: "data/b.png", data: png("b") },
+                { name: "data/bg.png", data: png("bg") },
+            ]);
+            const d2 = await readOra(f2, { inflateRaw });
+            const [, gt, rf] = d2.layers;
+            check("an attribute written inside a layer's name is not the layer's, and a > in a name keeps the layer",
+                d2.layers.length === 3 && rf && rf.name === "ref x='800' src='none.png'" && rf.x === 3 && rf.y === 4 && Buffer.from(rf.png).toString("latin1").endsWith("a")
+                && gt && gt.name === "Fg > Bg" && gt.x === 5 && gt.y === 6, short(d2.layers.map((l) => [l.name, l.x, l.y])));
+        }
         const noXml = await throwsWith(() => readOra(zip([{ name: "mimetype", data: "image/openraster" }]), { inflateRaw }), /no stack.xml/);
         check("an ORA without stack.xml is refused", noXml.ok, noXml.msg);
         const noInflater = await throwsWith(() => readOra(file), /needs an inflater/);
