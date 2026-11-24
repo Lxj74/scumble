@@ -63,6 +63,21 @@ the section for its version; `docs/` and the commit history hold the technical d
     before it moves a layer locked by its group. On ToAPIs its cost shows in dollars (it showed the credits as dollars,
     200 times too much). Two saves of one chat no longer write over each other.
   - Nine or more pictures read by path at once (an agent's parallel calls) no longer fail the first ones.
+  - A Deep paint layer keeps its alpha lock when the document is saved and opened again.
+  - *Layer › New Light Brush Layer*: one Ctrl+Z takes the layer away again (it lifted the mask, and the sun lit the
+    whole picture).
+  - *Apply mask* on a text layer right after typing in the side panel bakes the mask into the text you typed, not the
+    text from before.
+  - A reference layer you paint on during a local run's start is sent as you painted it, not as its last saved file.
+  - *Generate the new border* on a ComfyUI recipe that runs ComfyUI's paid API nodes asks about the cost first, as on
+    an API provider.
+  - A layer mask removed while its autosave upload ran no longer comes back when the document is opened again.
+  - Delete, Ctrl+E, Ctrl+G, Ctrl+J or Ctrl+Shift+N while a stroke is still held waits for the mouse to let go (Delete
+    removed the layer the stroke was painting on).
+  - Changing the stock of a film look and then Ctrl+Z gives the look its old name back too.
+  - After a crop, a turn or a flip, `sample_depth` reads the depth at the point you name, and a depth map that followed
+    a turn is no longer reported as stale. Surface maps with an infinite or undefined point no longer flatten the
+    whole map.
 
 ## 0.1.59 - 2026-11-20
 

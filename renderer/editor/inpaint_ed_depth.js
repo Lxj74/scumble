@@ -8,7 +8,7 @@ import { uploadCanvas } from "./inpaint_upload.js";
 import { GUIDE, STALE_DIFF, WORK_MAX, modelSize, workSize } from "./inpaint_depth.js";
 import { deriveMap, editMap, fingerprint, fingerprintDiff, makeMap, packMap, selectionOnMap } from "./inpaint_maps.js";
 import { disparityFromPoints, linToSrgb255, packNormals, packPoints, surfaceModelSize } from "./inpaint_surface.js";
-import { xfInv } from "./inpaint_resample.js";
+import { xfInv, xfMul, xfScale } from "./inpaint_resample.js";
 import { SNAP_DEFAULT } from "./inpaint_edges.js";
 import { failKind } from "./inpaint_status.js";
 import { makeCanvas } from "./inpaint_consts.js";
@@ -1123,7 +1123,8 @@ export class DepthPart {
 
     /**
      * Checks if the document map under `kind` is stale against the current picture.
-     * Renders pictureInput through the map's xf into 64 x 64 and compares fingerprint against meta.fp.
+     * Renders pictureInput through the map's xf into 64 x 64 and compares fingerprint against meta.fp (a map that
+     * followed a crop or a turn is compared with the part of the picture it covers, not the whole new picture).
      * @param {string} kind
      * @returns {Promise<{ stale: boolean, diff: number }>}
      */
@@ -1132,8 +1133,31 @@ export class DepthPart {
         if (!map || !map.meta || !map.meta.fp) return { stale: false, diff: 0 };
         if (this.width <= 0 || this.height <= 0) return { stale: false, diff: 0 };
         try {
-            const inp = await host.pictureInput(this, 64, 64, { skipFilters: true, background: "#808080" });
-            const fp = fingerprint(inp.image, 64, 64);
+            const W = this.width, H = this.height;
+            const xf = map.xf || [W, 0, 0, H, 0, 0];
+            const whole = [W, 0, 0, H, 0, 0].every((v, i) => Math.abs(xf[i] - v) < 1e-6 * Math.max(1, Math.abs(v)));
+            let image;
+            if (whole) {
+                image = (await host.pictureInput(this, 64, 64, { skipFilters: true, background: "#808080" })).image;
+            } else {
+                // a map that followed a crop, an extend, a turn or a flip: the picture as the map sees it (its unit square
+                // through `xf`), what its fingerprint was taken of; outside the picture grey, as the fingerprint's background
+                const pw = W >= H ? 256 : Math.max(1, Math.round(256 * W / H)), ph = W >= H ? Math.max(1, Math.round(256 * H / W)) : 256;
+                const inp = await host.pictureInput(this, pw, ph, { skipFilters: true, background: "#808080" });
+                const src = document.createElement("canvas");
+                src.width = pw; src.height = ph;
+                src.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(inp.image.buffer, inp.image.byteOffset, inp.image.byteLength), pw, ph), 0, 0);
+                const c = document.createElement("canvas");
+                c.width = 64; c.height = 64;
+                const ctx = c.getContext("2d");
+                ctx.fillStyle = "#808080"; ctx.fillRect(0, 0, 64, 64);
+                ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+                const m = xfMul(xfScale(64, 64), xfMul(xfInv(xf), xfScale(W / pw, H / ph)));
+                ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+                ctx.drawImage(src, 0, 0);
+                image = new Uint8Array(ctx.getImageData(0, 0, 64, 64).data.buffer);
+            }
+            const fp = fingerprint(image, 64, 64);
             const diff = fingerprintDiff(map.meta.fp, fp);
             const thresh = map.meta.threshold != null ? map.meta.threshold : STALE_DIFF;
             return { stale: diff >= thresh, diff };

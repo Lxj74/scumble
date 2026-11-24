@@ -4,6 +4,7 @@
 import { BRUSH_MAX } from "./editor/inpaint_canvas.js";
 import { P, clampInt, findLayer } from "./commands_util.js";
 import { host } from "./editor/host.js";
+import { xfApply, xfInv } from "./editor/inpaint_resample.js";
 
 /** @typedef {import("./commands.js").Command} Command */
 
@@ -95,14 +96,19 @@ export const DepthCommandsPart = {
             const u16 = (depthObj && (depthObj.data || depthObj.u16)) || null;
             if (!depthObj || !u16) throw new Error("run depth_map first");
             const dw = depthObj.w, dh = depthObj.h;
-            const gx = Math.max(0, Math.min(dw - 1, Math.floor((x / ed.width) * dw)));
-            const gy = Math.max(0, Math.min(dh - 1, Math.floor((y / ed.height) * dh)));
+            // the map's own square (its xf, which follows a crop, a turn or a flip of the picture), not the picture's
+            // at the pixel's centre: a pixel's corner can land on a grid line, where a crop's float offset tips the floor
+            const cx = Math.floor(x) + 0.5, cy = Math.floor(y) + 0.5;
+            let ux = cx / ed.width, uy = cy / ed.height;
+            if (Array.isArray(depthObj.xf)) { try { [ux, uy] = xfApply(xfInv(depthObj.xf), cx, cy); } catch (_) { /* a map that cannot be inverted: the picture's square */ } }
+            const gx = Math.max(0, Math.min(dw - 1, Math.floor(ux * dw)));
+            const gy = Math.max(0, Math.min(dh - 1, Math.floor(uy * dh)));
             const u16Val = u16[gy * dw + gx];
             const meta = depthObj.meta || depthObj;
             let rawVal = null;
             if (meta.raw && meta.rw && meta.rh) {
-                const rx = Math.max(0, Math.min(meta.rw - 1, Math.floor((x / ed.width) * meta.rw)));
-                const ry = Math.max(0, Math.min(meta.rh - 1, Math.floor((y / ed.height) * meta.rh)));
+                const rx = Math.max(0, Math.min(meta.rw - 1, Math.floor(ux * meta.rw)));
+                const ry = Math.max(0, Math.min(meta.rh - 1, Math.floor(uy * meta.rh)));
                 rawVal = meta.raw[ry * meta.rw + rx];
             }
             return {

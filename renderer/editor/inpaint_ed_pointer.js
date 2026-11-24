@@ -208,6 +208,13 @@ export class PointerPart {
             }
             return;
         }
+        // a stroke or a drag still held: a key that adds, merges, groups or deletes layers waits for its end (Delete during
+        // a stroke removed the layer the stroke was painting on, and the stroke's commit then landed on nothing)
+        if (this.gestureHeld() && ((ctrl && ["n", "g", "j", "e"].includes(k)) || k === "delete" || k === "backspace")) {
+            e.preventDefault();
+            this.setStatus("Let go of the mouse first.");
+            return;
+        }
         if (ctrl && e.shiftKey && k === "n") { e.preventDefault(); this.addPaintLayer(); return; }
         if (ctrl && e.shiftKey && k === "r") { e.preventDefault(); this.toggleRulers(); return; }
         // Ctrl+Alt+G by the key, not `ctrl`: Windows reports a real Ctrl+Alt as AltGr, which types nothing on G in the usual layouts

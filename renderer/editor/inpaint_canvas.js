@@ -917,8 +917,12 @@ class InpaintEditor {
                 layer.maskDirty = false;
                 layer._maskUploading = true;
                 try {
-                    const { ref } = await uploadPixels(layer.maskPx, `n${this.node.id}_lmask`);
-                    layer.maskRef = ref;
+                    const sent = layer.maskPx;
+                    const { ref } = await uploadPixels(sent, `n${this.node.id}_lmask`);
+                    // the mask removed or replaced during the upload: this file is not its mask (a removed mask would
+                    // come back at the next restore; a new one is dirty and goes up next time)
+                    if (layer.maskPx === sent) layer.maskRef = ref;
+                    else if (!layer.maskPx) layer.maskRef = null;
                 } catch (err) {
                     layer.maskDirty = true;
                     throw err;

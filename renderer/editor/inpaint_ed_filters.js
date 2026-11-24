@@ -395,18 +395,21 @@ export class FiltersPart {
      * *Layer › New Light Brush Layer* (SP6): a relight layer with one warm sun from the upper left and a mask that hides
      * all of it, the mask in edit and the brush picked, so painting brings the light in where it is painted (the light
      * follows the surfaces' facing from the depth map, and with the surface maps it lights the picture's own colour and
-     * keeps its reflections). The depth map is made by the relight layer as before. One undo step for the mask (adding
-     * a layer is none).
+     * keeps its reflections). The depth map is made by the relight layer as before. One undo step that takes the layer
+     * away (before: the mask's own step, whose undo left the sun lighting the whole picture).
      */
     newLightBrushLayer() {
         if (!this.width) { this.setStatus("Load an image first."); return null; }
+        this.pushUndo({ kind: "layers", label: "Light brush layer" });
         const layer = this.addFilterLayer("relight");
         if (!layer) return null;
         layer.name = `Light brush ${this.filterCounter}`;
         const size = { width: this.width, height: this.height };
         const sun = { ...defaultLight(0, size), type: "sun", x: Math.round(this.width * 0.25), y: Math.round(this.height * 0.2), color: 4500, intensity: 120 };
         layer.params = { ...layer.params, lights: normalizeLights([sun], size) };
-        this.fillLayerMask(layer, false);
+        layer.maskPx = this.pixels.Mask.empty(layer.px.width, layer.px.height);   // hides all
+        layer.maskOff = false;
+        this.markMaskChanged(layer);
         layer.maskEdit = true;
         this.activeLayerId = layer.id;
         this.setTool("paint");

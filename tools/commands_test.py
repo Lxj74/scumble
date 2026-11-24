@@ -2042,6 +2042,18 @@ const prev = host.recipe;
 let stored0 = null;
 try { stored0 = localStorage.getItem("ipc.extendGenerate"); } catch (_) { /* no storage */ }
 const out = {};
+// (review 2026-11-16, nice) a ComfyUI recipe on the API input (paid partner nodes) is charged, asked about like a
+// provider's; one on the local input is not
+{
+    const was = host.recipe;
+    host.recipe = { kind: "comfy", mode: "api", id: "partner", name: "Partner nodes", result: "9" };
+    const sa = host.resultInputState(ed);
+    host.recipe = { kind: "comfy", mode: "local", id: "local", name: "Local", result_local: "9" };
+    const sl = host.resultInputState(ed);
+    host.recipe = was;
+    if (!(sa.charged === true && /ComfyUI API/.test(sa.label) && sa.recipeName === "Partner nodes" && !sl.charged)) throw new Error("a ComfyUI API recipe is not charged: " + JSON.stringify({ sa, sl }));
+    out.comfyApi = sa;
+}
 try {
     host.setRecipe(__LOOP_EDIT__);
     await c("set_crop", { doc: d.id, fill: "none", withOriginal: false });

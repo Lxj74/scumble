@@ -38,11 +38,12 @@ export function activate(scumble) {
         const active = doc.activeLayer();
         if (active && active.kind === "filter" && active.filter === LOOK_ID) {
             const l = doc.rawLayer(active.id);
-            l.name = stock ? stock.label.replace(/ \(.*\)$/, "") : l.name;
+            // the name after the params' undo step is taken (it records the name too): an undo gives the old stock its name back
             const out = doc.setFilterParams(active.id, params);
+            l.name = stock ? stock.label.replace(/ \(.*\)$/, "") : l.name;
             doc.editor.renderLayers();
             doc.status(`${l.name}: film look changed.`);
-            return out;
+            return { ...out, name: l.name };
         }
         return doc.run("add_filter", { type: LOOK_ID, params, name: stock ? stock.label.replace(/ \(.*\)$/, "") : undefined });
     }

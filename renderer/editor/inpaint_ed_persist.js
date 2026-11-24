@@ -45,7 +45,7 @@ export class PersistPart {
             groups: this.groupsCopy(),
             layers: this.layers.map((l) => ({
                 id: l.id, name: l.name, kind: l.kind, role: l.role || "none", blend: l.blend || "normal", ref: l.ref,
-                x: l.x, y: l.y, w: l.w, h: l.h, opacity: l.opacity, visible: l.visible, mask: l.maskRef || null,
+                x: l.x, y: l.y, w: l.w, h: l.h, opacity: l.opacity, visible: l.visible, mask: l.maskPx ? (l.maskRef || null) : null,
                 ...(l.maskOff && l.maskPx ? { maskOff: true } : {}),
                 ...(l.match && l.match.strength > 0 ? { match: l.match } : {}),
                 ...(l.locked ? { locked: true } : {}),
@@ -228,7 +228,7 @@ export class PersistPart {
                             // is not): the next save would refuse the whole document over it
                             this.layers.push(installLayerAliases({
                                 id: l.id, name: l.name, kind: "filter", role: "none", blend: normalBlend(l.blend), ref: paintLost ? null : l.ref || null, px: pixels,
-                                x: 0, y: 0, w: this.width, h: this.height, opacity: l.opacity ?? 1, visible: l.visible !== false, dirty: false, locked: !!l.locked, clip: !!l.clip, group: l.group || null,
+                                x: 0, y: 0, w: this.width, h: this.height, opacity: l.opacity ?? 1, visible: l.visible !== false, dirty: false, locked: !!l.locked, alphaLock: !!l.alphaLock, clip: !!l.clip, group: l.group || null,
                                 maskPx, maskRef: maskPx ? l.mask : null, maskDirty: false, maskEdit: false, maskOff: !!(maskPx && l.maskOff),
                                 filter: fid, params: FILTERS[fid] ? { ...filterDefaults(fid), ...(l.params || {}) } : { ...(l.params || {}) }, lut: l.lut && l.lut.ref && !lutData ? null : l.lut || null, _lutData: lutData,
                                 plate: plateImg ? l.plate : null, _plateImg: plateImg,
@@ -454,7 +454,7 @@ export class PersistPart {
         const references = [];
         const refLayers = this.refLayersFor(opts.refIds);
         for (const l of refLayers) {
-            if (!l.maskPx && l.ref && !l.dirty) { references.push(l.ref); continue; }
+            if (!l.maskPx && l.ref && !l.dirty && !l._uploading) { references.push(l.ref); continue; }   // a ref being replaced: its pixels
             if (!l.exportRef) {
                 const up = await uploadCanvas(this.layerPixels(l), `n${id}_ref`);
                 l.exportRef = up.ref;

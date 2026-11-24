@@ -1316,7 +1316,7 @@ export class GeometryPart {
         const grows = !f.angle && (f.y < 0 || f.x < 0 || f.x + f.w > this.width || f.y + f.h > this.height);
         if (grows && this.extendGenerate) {
             const s = this.resultInputState();
-            if (s.provider && s.charged) {
+            if (s && s.charged) {
                 const yes = await this.ask({
                     title: "Generate the new border",
                     message: `After the extend, Generate runs on the new border with ${s.recipeName || "the selected recipe"} on ${s.label || "an API provider"}: a paid run, charged as any Generate. Cancel extends the canvas and generates nothing.`,

@@ -222,6 +222,10 @@ JS_MAPS = r"""
     await settle(ed);
     check("rotate_canvas 90 width/height swapped", ed.width === H && ed.height === W, [ed.width, ed.height]);
     check("data untouched on rotate_canvas", ed.maps.depth.data === dataRef0);
+    // (review 2026-11-16, nice) mapStale compares the part of the picture the map covers through its xf: a turn keeps
+    // the whole picture, so the turned map is not stale (before: the turned picture against the upright fingerprint)
+    const afterTurn = await ed.mapStale("depth");
+    check("mapStale after a quarter turn: not stale", afterTurn.stale === false && afterTurn.diff <= 5, afterTurn);
 
     // (x, y) rotates to (H - y, x) = (300 - 60, 100) = (240, 100)
     const turnedPt = [H - pt0[1], pt0[0]];
@@ -236,9 +240,14 @@ JS_MAPS = r"""
     check("sampleMap at document point follows undo", Math.abs(sUndo - s0) < 1e-4, { s0, sUndo });
 
     // 3. Crop then extend (points outside footprint read edge value)
+    const sd0 = await shell.commands.call("sample_depth", { doc: ed.node.id, x: 100, y: 60 });
     await shell.commands.call("extend_canvas", { doc: ed.node.id, left: -50, top: -50, right: 0, bottom: 0 });
     await settle(ed);
     check("canvas cropped", ed.width === W - 50 && ed.height === H - 50, [ed.width, ed.height]);
+    // (review 2026-11-16, nice) sample_depth reads through the map's xf: the point (100, 60) is (50, 10) after the crop;
+    // and mapStale compares the part of the picture the map covers, so a crop alone does not make it stale
+    const sd1 = await shell.commands.call("sample_depth", { doc: ed.node.id, x: 50, y: 10 });
+    check("sample_depth follows the crop (the map's xf)", sd0.ok && sd1.ok && sd1.result.u16 === sd0.result.u16, { before: sd0.result && sd0.result.u16, after: sd1.result && sd1.result.u16 });
 
     await shell.commands.call("extend_canvas", { doc: ed.node.id, left: 100, top: 100, right: 0, bottom: 0 });
     await settle(ed);

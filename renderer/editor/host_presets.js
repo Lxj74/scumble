@@ -698,7 +698,8 @@ export const HostPresetsPart = {
         if (r.kind === "provider") return { name: "result", wired: true, fallback: editor.genSettings.mode === "local", provider: true, charged: r.provider !== "inapp", label: r.providerLabel || r.provider || "", recipeName: r.name || r.id || "" };
         const want = editor.genSettings.mode === "local" ? "result_local" : "result";
         const has = r.mode === "api" ? "result" : "result_local";
-        return { name: has, wired: !!r.result, fallback: want !== has };
+        // a ComfyUI recipe on the API input runs paid partner nodes (the ComfyUI API), so it is asked about too
+        return { name: has, wired: !!r.result, fallback: want !== has, charged: r.mode === "api", label: r.mode === "api" ? "the ComfyUI API" : "", recipeName: r.name || r.id || "" };
     },
 
     widgetValue(editor, name, fallback) {

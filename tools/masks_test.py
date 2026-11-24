@@ -439,6 +439,26 @@ await run("select_none", { doc: window.__masksDoc });
 return { ok: true };
 """),
 
+    ("case9b_apply_mask_right_after_typing", """
+// review 2026-11-16 (nice) p1-review-fixes/mask-apply-on-edited-text-layer: text typed in the side panel a moment
+// before Apply mask is drawn first; before, its debounced render was dropped and the mask baked into the old text
+const ed = ednow(window.__masksDoc);
+const t = await run("add_text", { doc: window.__masksDoc, text: "AB", x: 40, y: 100, size: 80 });
+await wait(300);
+const id = t.id || (t.layer && t.layer.id);
+await run("set_mask", { doc: window.__masksDoc, layer: id, op: "reveal" });
+const L = ed.layers.find((l) => l.id === id);
+const narrow = L.w;
+L.text.content = "ABABABAB";           // what the side panel's text box does on a keystroke
+ed.scheduleTextRender(L);
+await run("set_mask", { doc: window.__masksDoc, layer: id, op: "apply" });
+const L2 = ed.layers.find((l) => l.id === id);
+if (L2.kind !== "paint") throw new Error("not pixels after Apply mask: " + L2.kind);
+if (!(L2.w > narrow * 2)) throw new Error(`the pixels are the text before the typing: ${L2.w} wide, ${narrow} before`);
+await run("remove_layer", { doc: window.__masksDoc, layer: id });
+return { ok: true, narrow, wide: L2.w };
+"""),
+
     ("case7_locks", """
 const ed = ednow(window.__masksDoc);
 const lA = await run("add_filter", { doc: window.__masksDoc, type: "levels", name: "LockA" });

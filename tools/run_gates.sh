@@ -147,9 +147,9 @@ for g in "$@"; do
     mcpb) timeout 900 node tools/mcpb_test.js ${EXE:+--exe "$EXE"} > "$OUT/mcpb.log" 2>&1; rc=$? ;;
     # the MiniMax adapter, its recipe and its wiring (docs/RECIPES.md "MiniMax"): plain Node, no app, no key
     minimax) timeout 180 node tools/minimax_test.js > "$OUT/minimax.log" 2>&1; rc=$? ;;
-    # the depth maps' arithmetic (sizes, the guided filter against its numpy reference): plain Node, no app, no model.
+    # the depth maps' arithmetic (sizes, the guided filter against its numpy reference) and the surface maps' (tools/surface_test.js without its model folders): plain Node, no app, no model.
     # It had no rule, so the default one ran a tools/depth_test.py that never existed and the gate could only fail
-    depth) timeout 180 node tools/depth_test.js > "$OUT/depth.log" 2>&1; rc=$? ;;
+    depth) { timeout 180 node tools/depth_test.js && timeout 180 node tools/surface_test.js; } > "$OUT/depth.log" 2>&1; rc=$? ;;
     # Deep paint's wrap (docs/PLAN_SURFACE_PAINT.md SP7): the arc-length unwrap in plain Node
     wrap) timeout 120 node tools/wrap_test.js > "$OUT/wrap.log" 2>&1; rc=$? ;;
     # the distort / warp bake by backward mapping (item 73): every pixel once, the rim, the levels; plain Node

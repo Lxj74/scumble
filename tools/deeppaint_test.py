@@ -645,6 +645,16 @@ JS = r"""
             await shell.commands.call("remove_layer", { doc, layer: LB.id });
             await ed.setMaps({ normals: keepNormals });
             await settle(ed);
+            // (review 2026-11-16, nice) one Ctrl+Z right after takes the light brush layer away, not its mask (before: the
+            // undo lifted the mask and the sun lit the whole picture)
+            const before2 = await all(), n2 = ed.layers.length;
+            const LB2 = ed.newLightBrushLayer();
+            if (ed.relightSettled) await ed.relightSettled();
+            await settle(ed);
+            await shell.commands.call("undo", { doc });
+            if (ed.relightSettled) await ed.relightSettled();
+            await settle(ed);
+            check("one undo after New Light Brush Layer takes the layer away, the picture as it was", LB2 && !ed.layers.some((l) => l.id === LB2.id) && ed.layers.length === n2 && diff(await all(), before2).max === 0, { n: ed.layers.length, n2, d: diff(await all(), before2) });
         }
 
         // SP7: a layer wrapped onto the surface (a cylinder's normals at the picture's size, axis at x 320, radius 200)

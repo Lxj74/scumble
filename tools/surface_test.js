@@ -86,6 +86,17 @@ async function main() {
         const mir = S.disparityFromPoints(pm, nmask, [-1 / W, 0, 0, 1 / H, 1, 0], W, H, w, h);
         check("depth from points: read through the map's xf", Math.abs(mir.raw[2 * w + 1] - 0.25) < 1e-3 && Math.abs(mir.raw[2 * w + 6] - 0.5) < 1e-3);
         check("depth from points: too few kept pixels -> null", S.disparityFromPoints(pm, new Uint8Array(w * h * 4), inv, W, H, w, h) === null);
+        // (review 2026-11-16, nice) a kept point with an infinite X or a NaN Y is dropped like the sky: the bounds and the
+        // others' packing stay as without it (before: X's span went infinite, every X packed to 0, meta.hi null in JSON)
+        const bad = Float32Array.from(pts);
+        bad[3 * (2 * w + 3)] = Infinity; bad[3 * (3 * w + 5) + 1] = NaN; bad[3 * (1 * w + 2) + 2] = Infinity;
+        const pb = S.packPoints(bad, mk, w, h);
+        const same = (i) => [0, 1, 2].every((c) => pb.data[3 * i + c] === pk.data[3 * i + c]);
+        const okMeta = [...pb.meta.lo, ...pb.meta.hi].every(Number.isFinite) && JSON.stringify(pb.meta.lo) === JSON.stringify(pk.meta.lo) && JSON.stringify(pb.meta.hi) === JSON.stringify(pk.meta.hi);
+        const dropped = [2 * w + 3, 3 * w + 5, 1 * w + 2].every((i) => pb.data[3 * i] === 0 && pb.data[3 * i + 1] === 0 && pb.data[3 * i + 2] === 0);
+        let others = true;
+        for (let i = 0; i < w * h; i++) if (![2 * w + 3, 3 * w + 5, 1 * w + 2].includes(i) && !same(i)) others = false;
+        check("packPoints: a point with an infinite or NaN number is dropped, the rest packed as before", okMeta && dropped && others, JSON.stringify({ lo: pb.meta.lo, hi: pb.meta.hi, dropped, others }));
     }
     check("the model's size: long side 768, at least 16",S.surfaceModelSize(15000, 10000).join("x") === "768x512" && S.surfaceModelSize(500, 300).join("x") === "500x300" && S.surfaceModelSize(4000, 20).join("x") === "768x16");
 
