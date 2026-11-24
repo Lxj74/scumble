@@ -626,11 +626,17 @@ class Assistant {
     /** The chat as it stands, on disk; called at the end of every turn. A deleted chat is never written again. */
     async saveChat(chat) {
         if (!this.deps.store || !chat || chat.readOnly || chat.deleted) return null;
-        const job = (async () => {
-            const saved = await this.deps.store.save(chat, { events: this.events });
+        // one save after the other: two at once wrote the same <id>.json.tmp and renumbered the same screenshots (a turn
+        // sent while the last one's save still wrote, after the history was pruned in place)
+        const events = this.events;
+        const before = this.saveChain || Promise.resolve();
+        const job = before.catch(() => {}).then(async () => {
+            if (chat.deleted) return null;
+            const saved = await this.deps.store.save(chat, { events });
             await this.deps.store.prune(this.settings().keepChats);
             return saved;
-        })();
+        });
+        this.saveChain = job;
         this.saves.add(job);
         job.then(() => this.saves.delete(job), () => this.saves.delete(job));
         return job;
@@ -1155,7 +1161,11 @@ function idsNamedBy(name, result) {
     if (!result || typeof result !== "object") return [];
     const out = [];
     const add = (v) => { if (typeof v === "string" && v) out.push(v); };
-    if (["add_paint_layer", "add_filter", "add_text", "add_image_layer", "duplicate_layer", "film_apply_look", "copy_to_layer"].includes(name)) add(result.id);
+    if (["add_paint_layer", "add_filter", "add_text", "add_image_layer", "duplicate_layer", "film_apply_look", "copy_to_layer",
+        "contact_shadow", "dodge_burn_layer", "add_surface_layer", "wrap_layer"].includes(name)) add(result.id);
+    // frequency_separation: its two layers; extend_canvas with generate: the border's result layer
+    if (name === "frequency_separation") { add(result.low); add(result.high); }
+    if (name === "extend_canvas") add(result.generated && result.generated.layer && result.generated.layer.id);
     if (name === "generate" || name === "upscale" || name === "realism_pass" || name === "glb_place" || name === "relight") { add(result.layer && result.layer.id); add(result.depthLayer && result.depthLayer.id); }
     // generate each_area (item 54): every area's result layer; split_layers: every new layer
     if ((name === "generate" || name === "split_layers") && Array.isArray(result.layers)) for (const l of result.layers) add(l && l.id);

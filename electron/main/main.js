@@ -167,7 +167,9 @@ const documents = new Documents({
 const videoFiles = new VideoFiles();
 // File › Open's pictures, PSD / ORA / TIFF files and load_image's paths (grantedfiles.js): a token per open, served to
 // the window with ranges and released by it once its File is made; never the bytes in one IPC message
-const openFiles = new GrantedFiles({ types: { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff", ".svg": "image/svg+xml" } });
+// up to 256 tokens: agents read pictures by path side by side (nine add_image_layer calls at once lost the first one's
+// token to the cap of 8 before its read came); every reader gives its token back when it is done (grantfile.js)
+const openFiles = new GrantedFiles({ max: 256, types: { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff", ".svg": "image/svg+xml" } });
 const fileSaves = new FileSaves({ registry: documents.registry, choose: (name, filters) => chooseSavePath(name, filters) });
 const flushWaits = new Map();   // id -> resolve, while the window saves (app:flush / app:flushed)
 let flushSeq = 0;

@@ -1501,6 +1501,7 @@ async function main() {
                 { id: "Llocked", name: "Locked", active: false, locked: true },
                 { id: "Lyours", name: "Sketch", active: false },
                 { id: "Lmine", name: "Result 1", active: true },
+                { id: "Lgrouped", name: "In a locked group", active: false, locked_by_group: true },
             ],
             ...extra,
         });
@@ -1540,6 +1541,10 @@ async function main() {
             ["extend_canvas", { left: 100, generate: true }, "ask"],
             ["glb_edit", { layer: "Lmine", depth_layer: false }, "auto"],
             ["glb_edit", { layer: "Lyours", depth_layer: false }, "ask"],
+            // (review 2026-11-16, nice) a 3D object the user placed is not redrawn unasked; a layer locked by its group
+            // is not moved unasked
+            ["glb_edit", { layer: "Lyours", yaw: 30 }, "ask"], ["glb_edit", { layer: "Lmine", yaw: 30, pose_layer: false }, "auto"],
+            ["set_layer", { layer: "Lgrouped", x: 10 }, "ask"],
             ["add_image_layer", { filename: "x.png" }, "auto"],
             ["add_image_layer", { path: "C:/x.png" }, "ask"],
             ["cutout_layer", {}, "ask"], ["upsample_prompt", {}, "ask"],
@@ -1583,6 +1588,39 @@ async function main() {
             if (got !== want) wrong.push(`${name}(${JSON.stringify(args)}): ${got}, wanted ${want}`);
         }
         check("every_row_of_the_table", !wrong.length, wrong.join("; ") || `${rows.length} rows`);
+
+        {
+            // (review 2026-11-16, nice) the layers a call made are the chat's: a contact shadow, a dodge and burn layer,
+            // a surface layer, a wrap's Deep paint, a frequency separation's two, an extend's generated border
+            const { _idsNamedBy } = require(path.join(ROOT, "electron", "main", "assistant", "index.js"));
+            const got = [
+                _idsNamedBy("contact_shadow", { id: "S1", under: "L1" }), _idsNamedBy("dodge_burn_layer", { id: "D1" }),
+                _idsNamedBy("add_surface_layer", { id: "P1" }), _idsNamedBy("wrap_layer", { id: "W1", hidden: "L1" }),
+                _idsNamedBy("frequency_separation", { low: "F1", high: "F2" }),
+                _idsNamedBy("extend_canvas", { width: 10, generated: { layer: { id: "G1" } } }), _idsNamedBy("extend_canvas", { width: 10 }),
+            ];
+            check("the_layers_a_shadow_a_wrap_a_separation_and_an_extend_made_are_named", JSON.stringify(got) === JSON.stringify([["S1"], ["D1"], ["P1"], ["W1"], ["F1", "F2"], ["G1"], []]), JSON.stringify(got));
+        }
+        {
+            // (review 2026-11-16, nice) two saves of one chat one after the other: the second waits for the first, each
+            // with the events of the moment it was asked
+            const { Assistant } = require(path.join(ROOT, "electron", "main", "assistant", "index.js"));
+            let open = 0, most = 0;
+            const order = [];
+            const store = {
+                save: async (chat, { events }) => { open++; most = Math.max(most, open); order.push(events.length); await new Promise((r) => setTimeout(r, 20)); open--; return true; },
+                prune: async () => {},
+            };
+            const a = new Assistant({ bridge: null, keys: { get: () => "" }, settings: { get: () => ({ assistant: {} }) }, emit: () => {}, fetchImpl: async () => { throw new Error("no"); }, store });
+            const chat = { id: "c1", history: [] };
+            a.events = [1];
+            const s1 = a.saveChat(chat);
+            a.events = [1, 2];
+            const s2 = a.saveChat(chat);
+            await Promise.all([s1, s2]);
+            await a.savesDone();
+            check("two_saves_of_a_chat_never_overlap", most === 1 && JSON.stringify(order) === "[1,2]" && a.saves.size === 0, JSON.stringify({ most, order, left: a.saves.size }));
+        }
 
         {
             // set_mask on the user's layer: the card says what the mask is now and what the call does to it; the editor
@@ -2506,6 +2544,10 @@ async function main() {
 
         const local = models.costOf("compat", "llama", usage);
         check("a local model costs nothing", local.amount === 0 && local.note === "local");
+
+        // (review 2026-11-16, nice) ToAPIs is priced in credits; the chat's total and the panel count dollars
+        const to = models.costOf("toapis", "claude-sonnet-5", { input: 100000, output: 10000 });
+        check("toapis_credits_are_turned_into_dollars", Math.abs(to.amount - 0.135 / 200) < 1e-12 && to.currency === "USD" && Math.abs(to.credits - 0.135) < 1e-12 && /0\.135 ToAPIs credits, 200 credits = \$1/.test(to.note), JSON.stringify(to));
     });
 
     // ---- 11. the Chat Completions dialects: the shapes (A2) -------------------------------

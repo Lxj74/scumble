@@ -93,7 +93,7 @@ const M = 1000000;
  * are not priced again).
  *
  * @returns {{amount: number|null, currency: string, note: string}}
- *          `amount` null means "no published price"; `currency` is "USD", or "credits" for ToAPIs.
+ *          `amount` null means "no published price"; `currency` is always "USD" (ToAPIs' credits turned into dollars, `credits` the count).
  */
 function costOf(provider, model, usage, at = Date.now()) {
     const u = usage || {};
@@ -128,7 +128,9 @@ function costOf(provider, model, usage, at = Date.now()) {
         else amount += (cacheWrite * rates.cacheWrite) / M;
     }
     if (provider === "deepseek") notes.push(deepseekPeak(at) ? "peak price" : "off-peak price");
-    if (provider === "toapis") return { amount, currency: "credits", note: notes.concat("200 credits = $1").join("; ") };
+    // the table holds ToAPIs credits; the chat's total and the panel count dollars, so the amount is turned into them
+    // here (200 credits = $1) and the credits go into the note
+    if (provider === "toapis") return { amount: amount / 200, currency: "USD", credits: amount, note: notes.concat(`${+amount.toFixed(4)} ToAPIs credits, 200 credits = $1`).join("; ") };
     return { amount, currency: "USD", note: notes.join("; ") };
 }
 

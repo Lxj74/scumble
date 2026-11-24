@@ -58,6 +58,11 @@ the section for its version; `docs/` and the commit history hold the technical d
   - `Scumble --run`: an app handed over to a window or another agent after the run quits as itself (an update
     installs, unfinished saves are cleaned up), not with the run's exit code. Its launcher no longer ends the app when
     the reader of its output goes away (`| head`).
+  - The assistant: a contact shadow, a dodge and burn layer, a wrap, a frequency separation or a generated border it
+    made counts as its own, so changing it next asks nothing. It asks before it redraws a 3D object you placed and
+    before it moves a layer locked by its group. On ToAPIs its cost shows in dollars (it showed the credits as dollars,
+    200 times too much). Two saves of one chat no longer write over each other.
+  - Nine or more pictures read by path at once (an agent's parallel calls) no longer fail the first ones.
 
 ## 0.1.59 - 2026-11-20
 

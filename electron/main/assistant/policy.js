@@ -156,9 +156,9 @@ const POLICY = {
             ? "bakes every visible layer into the base image and drops the others"
             : "crops the canvas")),
 
-    glb_edit: (call, facts) => (call.args && call.args.depth_layer === false && !owns(call, facts)
-        ? ASK("removes the depth layer of a 3D object you placed")
-        : AUTO()),
+    // a 3D object the user placed: a new pose, turn or light redraws its layer (and may drop its depth or pose layer)
+    glb_edit: (call, facts) => (owns(call, facts) ? AUTO()
+        : ASK(call.args && call.args.depth_layer === false ? "removes the depth layer of a 3D object you placed" : "redraws a 3D object you placed", card(call, facts, []))),
 
     // ---- files --------------------------------------------------------------------------
     add_image_layer: (call) => (call.args && call.args.path
@@ -547,9 +547,10 @@ function decide(call, facts = {}) {
     if (renders(call) && facts.busy) {
         return REFUSE("that document is already rendering; wait for it to finish");
     }
-    // a locked layer: no moving, no resizing, no text edit (the editor forbids it; the commands do not)
+    // a locked layer, by itself or by its group: no moving, no resizing, no text edit (the editor forbids it; the
+    // commands do not)
     const target = layerOf(call, facts);
-    if (target && target.locked && (name === "set_text" || (name === "set_layer" && SET_LAYER_GEOMETRY.some((k) => (call.args || {})[k] !== undefined)))) {
+    if (target && (target.locked || target.locked_by_group) && (name === "set_text" || (name === "set_layer" && SET_LAYER_GEOMETRY.some((k) => (call.args || {})[k] !== undefined)))) {
         return ASK("the layer is locked (no moving, no text edits)", card(call, facts, []));
     }
 
