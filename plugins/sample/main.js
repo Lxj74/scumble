@@ -135,14 +135,20 @@ export function activate(scumble) {
         needsImage: true,
         readOnly: true,   // the MCP hint; without it the server would judge the command by its name
         run(doc) {
-            // with a selection only its bounds are read (the whole picture without one)
-            const got = selectionBox(doc);
-            const sel = got && got.sel;
-            const flat = got ? got.flat : doc.getPixels().data.data;
+            // with a selection only its bounds are read (the whole picture without one), in strips of 256 rows: a whole
+            // flatten of a 15k picture was 1.2 GB at once on the window's thread, and past a canvas's limit it threw
+            const sel = doc.selection({ box: true });
+            const { x, y, w, h } = sel ? sel.bounds : { x: 0, y: 0, w: doc.width, h: doc.height };
             let r = 0, g = 0, b = 0, n = 0;
-            for (let i = 0, j = 0; i < flat.length; i += 4, j++) {
-                if (sel && !sel.mask[j]) continue;
-                r += flat[i]; g += flat[i + 1]; b += flat[i + 2]; n++;
+            for (let y0 = y; y0 < y + h; y0 += 256) {
+                const y1 = Math.min(y + h, y0 + 256);
+                const strip = doc.flatten({ box: [x, y0, x + w, y1], exact: true });
+                const flat = strip.getContext("2d").getImageData(0, 0, w, y1 - y0).data;
+                strip.width = strip.height = 0;
+                for (let i = 0, j = (y0 - y) * w; i < flat.length; i += 4, j++) {
+                    if (sel && !sel.mask[j]) continue;
+                    r += flat[i]; g += flat[i + 1]; b += flat[i + 2]; n++;
+                }
             }
             if (!n) return { pixels: 0 };
             const c = [r, g, b].map((v) => Math.round(v / n));

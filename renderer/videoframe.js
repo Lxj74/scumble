@@ -109,33 +109,46 @@ function clampTime(v, t) {
     return Math.max(0, end != null ? Math.min(end, t) : t);
 }
 
-/** Resolves once the element shows the frame at its currentTime (no seek pending, a frame decoded), or after 10 s. */
+/**
+ * Resolves true once the element shows the frame at its currentTime (no seek pending, a frame decoded); false after
+ * 10 s or on a media error (a seek into a damaged or cut-off part of the file: the frame on screen is an older one).
+ */
 function settled(v) {
     return new Promise((resolve) => {
-        if (!v.seeking && v.readyState >= 2) { resolve(); return; }
-        const t = setTimeout(done, 10000);
-        function done() { clearTimeout(t); v.removeEventListener("seeked", check); v.removeEventListener("loadeddata", check); v.removeEventListener("canplay", check); resolve(); }
-        function check() { if (!v.seeking && v.readyState >= 2) done(); }
+        if (!v.seeking && v.readyState >= 2 && !v.error) { resolve(true); return; }
+        const t = setTimeout(() => done(false), 10000);
+        function done(ok) { clearTimeout(t); v.removeEventListener("seeked", check); v.removeEventListener("loadeddata", check); v.removeEventListener("canplay", check); v.removeEventListener("error", failed); resolve(ok); }
+        function check() { if (!v.seeking && v.readyState >= 2) done(!v.error); }
+        function failed() { done(false); }
         v.addEventListener("seeked", check);
         v.addEventListener("loadeddata", check);
         v.addEventListener("canplay", check);
+        v.addEventListener("error", failed);
     });
 }
 
-/** The frame on screen as a PNG File at the video's own size. */
+/**
+ * The frame on screen as a PNG File at the video's own size, named by the time it shows (read when it is drawn: a seek
+ * during the encode does not rename it). `file.frameTime` is that time.
+ */
 export async function frameFile(v, name) {
-    await settled(v);
+    const ok = await settled(v);
+    if (!ok || v.error || v.seeking || v.readyState < 2) {
+        throw new Error(v.error ? `the video cannot be read at ${v.currentTime.toFixed(3)} s (the file may be damaged or cut off there)` : `the frame at ${v.currentTime.toFixed(3)} s did not come within 10 s`);
+    }
     const w = v.videoWidth, h = v.videoHeight;
     if (!(w > 0 && h > 0)) throw new Error("the video shows no frame");
     const c = document.createElement("canvas");
     c.width = w;
     c.height = h;
+    const at = v.currentTime;
     c.getContext("2d").drawImage(v, 0, 0, w, h);
     const blob = await new Promise((resolve) => c.toBlob(resolve, "image/png"));
     c.width = c.height = 0;
     if (!blob) throw new Error("the frame could not be encoded");
     const stem = String(name || "video").replace(/\.[a-z0-9]+$/i, "") || "video";
-    return new File([blob], `${stem} ${v.currentTime.toFixed(3)}s.png`, { type: "image/png" });
+    const file = new File([blob], `${stem} ${at.toFixed(3)}s.png`, { type: "image/png" });
+    return Object.assign(file, { frameTime: at });
 }
 
 const CSS = `
@@ -195,7 +208,7 @@ export function showPicker(v, { name = "video", canLayer = true, focus = "new", 
         range.step = "any";
         range.value = "0";
         range.setAttribute("aria-label", "Position in the video");
-        range.addEventListener("input", () => { v.pause(); v.currentTime = +range.value; update(); });
+        range.addEventListener("input", () => { if (busy) return; v.pause(); v.currentTime = +range.value; update(); });
         const time = div("time");
         const controls = div("controls");
         controls.append(back, play, fwd, range, time);
@@ -325,12 +338,14 @@ export function showPicker(v, { name = "video", canLayer = true, focus = "new", 
             return stepping;
         }
         function seconds(n) {
+            if (busy) return;   // a frame being taken: its time stays the one it shows
             v.pause();
             v.currentTime = clampTime(v, v.currentTime + n);
             update();
         }
         /** The start (Home) or the end (End); an end not known is found by a seek far past it. */
         function jump(toEnd) {
+            if (busy) return;
             v.pause();
             const end = endOf(v);
             v.currentTime = !toEnd ? 0 : end != null ? end : 1e101;
@@ -345,14 +360,14 @@ export function showPicker(v, { name = "video", canLayer = true, focus = "new", 
             if (action === "layer" && !canLayer) return;
             busy = true;
             v.pause();
-            for (const b of [...Object.values(btn), cancel, back, play, fwd]) b.disabled = true;
+            for (const b of [...Object.values(btn), cancel, back, play, fwd, range]) b.disabled = true;
             info.textContent = "Taking the frame ...";
             try {
                 const file = await frameFile(v, name);
-                finish({ action, file, time: v.currentTime, width: v.videoWidth, height: v.videoHeight });
+                finish({ action, file, time: file.frameTime, width: v.videoWidth, height: v.videoHeight });
             } catch (err) {
                 busy = false;
-                for (const b of [...Object.values(btn), cancel, back, play, fwd]) b.disabled = false;
+                for (const b of [...Object.values(btn), cancel, back, play, fwd, range]) b.disabled = false;
                 if (!canLayer) btn.layer.disabled = true;
                 info.textContent = "The frame could not be taken: " + ((err && err.message) || err);
             }

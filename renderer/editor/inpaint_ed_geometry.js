@@ -714,6 +714,7 @@ export class GeometryPart {
             || this._loading || this._docSaving) return "Wait for the running job to finish: it would land where the picture was before the turn.";
         // a render queued on ComfyUI lands in the geometry it was made for (the app's host counts them, host.js)
         if (this._localRuns && this._localRuns.size) return "A render on your ComfyUI is still running: its result would land where the picture was. Turn the picture when it is in.";
+        if (this._landingResults > 0) return "A result is still landing: it would land where the picture was. Wait a moment.";
         if (this.gestureHeld()) return "Release the button first.";
         return "";
     }
@@ -810,7 +811,7 @@ export class GeometryPart {
             this.selState.invalidate();
             // what was under way in the old geometry
             this.polyPoints = null; this.lassoPoints = null; this.shapePoints = null; this.shapeDrag = null;
-            this.cloneSource = null; this.hover = null;
+            this.cloneSource = null; this.cloneOffset = null; this.lastStrokeEnd = null; this.hover = null;
             if (this.extendInputs) for (const k of Object.keys(this.extendInputs)) this.extendInputs[k].value = 0;
             this.renderLayers(); this.renderHistory(); this.renderSelectionList(); this.renderInfo(); this.updateSubbar();
             this.fitView(); this.drawThumb();
@@ -945,6 +946,17 @@ export class GeometryPart {
      */
     followGeometry(kind, A, from, to) {
         this.geometrySeq++;
+        // the points the brushes remember in image pixels (Shift+click's line start, Clone's and Heal's source) move
+        // with the picture; a point the change took off the picture is forgotten
+        const moved = (p) => {
+            if (!p) return null;
+            const [x, y] = xfApply(A, p.x, p.y);
+            return x >= 0 && y >= 0 && x <= to.width && y <= to.height ? { ...p, x, y } : null;
+        };
+        this.lastStrokeEnd = moved(this.lastStrokeEnd);
+        this.cloneSource = moved(this.cloneSource);
+        if (!this.cloneSource) this.cloneOffset = null;
+        else if (this.cloneOffset) this.cloneOffset = { x: this.cloneOffset.x * A[0], y: this.cloneOffset.y * A[3] };   // a resize scales the offset
         this.mapExtras(A, kind);
         this.mapGuides(A, to.width, to.height);
         this.docXf = snapXf(xfMul(A, this.docXf));
@@ -1156,7 +1168,7 @@ export class GeometryPart {
             this.touchSource(this.sel);
             this.selState.invalidate();
             this.polyPoints = null; this.lassoPoints = null; this.shapePoints = null; this.shapeDrag = null;
-            this.cloneSource = null; this.hover = null;
+            this.cloneSource = null; this.cloneOffset = null; this.lastStrokeEnd = null; this.hover = null;
             if (this.extendInputs) for (const k of Object.keys(this.extendInputs)) this.extendInputs[k].value = 0;
             this.renderLayers(); this.renderHistory(); this.renderSelectionList(); this.renderInfo(); this.updateSubbar();
             this.fitView(); this.drawThumb();

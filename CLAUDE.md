@@ -105,9 +105,10 @@ written down anywhere.
   hiding its layers without a write to their eye, CHANGELOG line), the Realism Pass status line naming the DLSS5 fork
   (issue #8, CHANGELOG "Unreleased"), item 77 step 3 (the host contract checked by tsc both ways,
   `tools/host_contract.py` -> `types/host_calls.js`, the typedef without `any`), ten shoulds of item 73 (2026-11-23,
-  CHANGELOG "Fixed, from the code review": six, the distort / warp bake by backward mapping, three 15k perf ones). Item 77 is done. **Next:** the release
+  CHANGELOG "Fixed, from the code review": six, the distort / warp bake by backward mapping, three 15k perf ones), 57 of
+  item 73's 58 nice (2026-11-24, the same CHANGELOG list). Item 77 is done. **Next:** the release
   chain of `docs/RELEASING.md` on the user's word, and right after it the reply on #8 (`dist/issue8_reply.md`); else
-  the user's pick from the list. `main` is 16 commits ahead of origin (nothing pushed since the move).
+  the user's pick from the list. `main` is 21 commits ahead of origin (nothing pushed since the move).
 - **The repository moved** (2026-11-20, the user: "ok, dann lass uns den umzug machen"): `DenRakEiw/scumble` ->
   **`scumble-app/scumble`**, an organisation on GitHub Free (the name `scumble` belongs to a stranger's account), so
   42lux can be an admin (done: admin on the repo; a personal account's repos have no roles). The old links forward
@@ -368,7 +369,15 @@ planning it. A new item gets its number and a few lines here; its research goes 
   paint's `chainEpoch` for those, `passStores` primes the paint; the deeppaint gate with the scheduler's budget at 0).
   **Left, 3 shoulds:** `untick-row-falls-to-comfy-default` and `fanout-setting-slot-clobbers-targets` (a fanned-out
   setting slot: one shared row or one per target is the user's call), `flat-psd-extra-channel-as-transparency` (needs a
-  fixture from Photoshop and one from another writer first). Then the 58 nice. Verify each against the code first.
+  fixture from Photoshop and one from another writer first). **The 58 nice (2026-11-24, unreleased, five commits from
+  `c3cdd607`):** 57 fixed, CHANGELOG "Fixed, from the code review" of 0.1.60; most with a gate check that fails without
+  the fix (new: gate `mainunit`, five plain-Node tests of `electron/main`; `tools/surface_test.js` in the `depth` gate);
+  light ones without a test: the LaMa kill before spawn, the 256 grants, the MCP launcher's stdout, the film look's
+  name, the mask upload, the inline boxes editor, the compositor's evict, the null sampler, the video picker, the open
+  into a closed tab, the scope, Florence-2's cancel, the clone source, the plugin chain, the landing counter, the held
+  Deep paint pixels, `mean_color`'s strips, the turned tip's reach. The assistant asks more since (a user's 3D object,
+  a layer locked by its group). **Left:** `p1-outpaint-shadow/shadow-thin-object-coarsened-away` (thin legs lost when
+  the shadow grid is coarsened: a max-pooled coverage darkens the shadow, the user's eye first).
 - 74: an automated tile upscaler / refiner (the user, 2026-11-18, as the answer to issue #14): the picture split into
   overlapping tiles small enough for the model to render at full detail, each refined on its own and put back
   together, one general prompt or one a vision model writes per tile. Pieces that exist: *Each area* (item 54),
@@ -444,7 +453,7 @@ rounds: `PX_ONLY` for `tools/px_test.js`, `tools/mutation_round.py` (`docs/TESTI
 coverage"). `tools/close_app.py` closes an instance by its DevTools port
 (`SCUMBLE_CDP_PORT`). Gates: `pixels editor composite commands shape brush film glb ailabel size transparent generate log
 mcp nodecopy toapis openrouter ark recipes assistant llm export pxjobs upscale layered platform lint types help skins
-magnific oxen quit document docux metadata tiff canvasonly clip groups comfyview portable selection limit maps depth maskview edges depthfx grading masks effects mcpb blendmodes relight cloudjobs loras key areas cli helpers deeppaint wrap meshwarp`, plus `docperf:<W>x<H>` (a .scumble save and open at size), `smoke` (a real Flux run; check `/queue` first, and not while the user needs
+magnific oxen quit document docux metadata tiff canvasonly clip groups comfyview portable selection limit maps depth maskview edges depthfx grading masks effects mcpb blendmodes relight cloudjobs loras key areas cli helpers deeppaint wrap meshwarp mainunit`, plus `docperf:<W>x<H>` (a .scumble save and open at size), `smoke` (a real Flux run; check `/queue` first, and not while the user needs
 ComfyUI), `perf:<W>x<H>`, `exportperf:<W>x<H>[,--filter=film.look]`, `tiffperf:<W>x<H>` (a TIFF export and open at size) and `huge:<W>x<H>` (the 30k gate; it refuses to run
 against a connected instance). `quit` and `quit:<W>x<H>` start and close their own instances (port +17): a test that
 closes the app must send WM_CLOSE, since a page's `window.close()` skips the window's close event. **`--offline` starts the instance with `--no-comfy`**: it does not connect, so no upload is

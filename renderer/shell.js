@@ -1102,7 +1102,10 @@ window.scumble.file.onOpened(async (g) => {
         } else if (!ed._destroyed) ed.setStatus(say, "error");
         return;
     }
-    if (ed._destroyed || ed.base) await openInto(file);
+    // the tab closed during the read: the open is over (it opened the file in a new tab anyway); another picture landed
+    // in the empty tab meanwhile: the file gets a tab of its own
+    if (ed._destroyed) { if (host.editor) host.editor.setStatus(`${g.name} was not opened: its tab was closed while it was read.`); return; }
+    if (ed.base) await openInto(file);
     else await ed.loadFile(file);
 });
 
@@ -1114,8 +1117,12 @@ window.scumble.file.onOpened(async (g) => {
  * cannot decode is refused in the status line before any picker opens. Resolves with the picker's answer (null when
  * cancelled or refused).
  */
+// the latest openVideo: an earlier one whose video loads after it (a durationless WebM's end found by a seek far past it)
+// gives way instead of closing the newer picker
+let videoSeq = 0;
+
 async function openVideo({ url, name, focus = "new", note = "", onClose = null }) {
-    const ed = host.editor;
+    const seq = ++videoSeq;
     const say = (text, kind) => { if (host.editor) host.editor.setStatus(text, kind); };
     say(`Reading ${name} ...${note}`);
     let v;
@@ -1126,7 +1133,13 @@ async function openVideo({ url, name, focus = "new", note = "", onClose = null }
         say(String((err && err.message) || err), "error");
         return null;
     }
+    if (seq !== videoSeq) {
+        try { v.pause(); v.removeAttribute("src"); v.load(); } catch (_) { /* gone */ }
+        try { if (onClose) onClose(); } catch (_) { /* the URL's own */ }
+        return null;
+    }
     say(`Pick a frame from ${name}.`);
+    const ed = host.editor;   // the tab in front when the picker opens (a tab switch during the load counts)
     const r = await showPicker(v, { name, canLayer: !!(ed && ed.base), focus, onClose });
     if (!r) { say(`No frame taken from ${name}.`, "info"); return null; }
     const target = host.editor;

@@ -218,6 +218,12 @@ api.addEventListener("executed", ({ detail }) => {
         if (ed && ed._boxPrompts && detail.prompt_id != null) ed._boxPrompts.delete(String(detail.prompt_id));
         const h0 = ed ? ed.history.length : 0;   // addResults says nothing of a result it could not land: the history does
         const landed = ed ? ed.addResults(sent ? out.inpaint_result.map((r) => ({ ...r, ...sent, via: sent.via ? `${sent.via}, ${Math.round((Date.now() - sent.viaStarted) / 1000)} s` : undefined })) : out.inpaint_result) : null;
+        // the result is fetched and decoded after ComfyUI's run has ended (its run guard is gone): an undo of the extend,
+        // a crop or a turn waits for it (turnBlocked), or the result lands where the picture was
+        if (ed && landed && typeof landed.then === "function") {
+            ed._landingResults = (ed._landingResults || 0) + 1;
+            landed.finally(() => { ed._landingResults = Math.max(0, (ed._landingResults || 1) - 1); }).catch(() => { /* counted down */ });
+        }
         if (notes) Promise.resolve(landed).then(() => ed.setStatus(`${ed.status} Boxes: ${notes.join(" ")}`, "warn")).catch(() => { /* the result's own line stands */ });
         // the run's upsampled prompt (0.1.50 Q9): its note after the result's line; a caption still to come finds the mark
         const pid = detail.prompt_id != null ? String(detail.prompt_id) : null;

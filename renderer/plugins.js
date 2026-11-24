@@ -883,8 +883,21 @@ function syncBoxRows() {
     for (const ed of host.editors()) if (ed && typeof ed.syncBoxesRow === "function") ed.syncBoxesRow();
 }
 
+// one load, reload or switch after the other: a Reload during a switch's load unloaded the half-loaded entry, and the
+// first load then went on registering filters and panels nothing could take back
+let pluginChain = Promise.resolve();
+const serial = (fn) => {
+    const run = pluginChain.catch(() => {}).then(fn);
+    pluginChain = run;
+    return run;
+};
+
 /** Load every enabled plugin that is not loaded yet; unload those disabled or gone. */
-export async function loadPlugins() {
+export function loadPlugins() {
+    return serial(loadPluginsNow);
+}
+
+async function loadPluginsNow() {
     const list = await fetchList();
     const present = new Set(list.map((p) => p.id));
     for (const entry of Array.from(plugins.values())) {
@@ -896,14 +909,18 @@ export async function loadPlugins() {
 }
 
 /** Unload everything and load again from disk (fresh manifests and modules). */
-export async function reloadPlugins() {
-    for (const entry of Array.from(plugins.values())) await unload(entry);
-    return loadPlugins();
+export function reloadPlugins() {
+    return serial(async () => {
+        for (const entry of Array.from(plugins.values())) await unload(entry);
+        return loadPluginsNow();
+    });
 }
 
-export async function setEnabled(id, on) {
-    await window.scumble.plugins.setEnabled(id, on);
-    return loadPlugins();
+export function setEnabled(id, on) {
+    return serial(async () => {
+        await window.scumble.plugins.setEnabled(id, on);
+        return loadPluginsNow();
+    });
 }
 
 /** For Settings › Plugins and the list_plugins command: manifests, state, what each registered. */

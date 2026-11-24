@@ -147,6 +147,7 @@ export const HostVlmPart = {
             const live = find();
             if (!live || live.name !== before || !this.autoNameOn()) return null;
             const image = await this.layerVlmInput(editor, live);
+            if (stopped()) return null;   // a Cancel or the tab's close during the read: the job is not started
             const res = await this.vlmJob(editor, image, { detailed: false });
             const name = shortName(res && res.text);
             const now = find();
@@ -175,7 +176,14 @@ export const HostVlmPart = {
         // the result history's entry for the layer (a click on it adds it again under this name)
         let hist = false;
         for (const h of editor.history || []) if (h && h.layerId === layer.id && h.name === before) { h.name = name; hist = true; }
-        editor.renderLayers();
+        // a name being typed into a row (an inline rename): the row's text is put right in place, the list is not
+        // rebuilt under the field (that ended the typing with what was typed so far)
+        const typing = [editor.layerList, editor.refList].some((list) => list && list.querySelector && list.querySelector("input.ipc-rename"));
+        if (!typing) editor.renderLayers();
+        else for (const list of [editor.layerList, editor.refList]) {
+            const span = list && list.querySelector && list.querySelector(`[data-layer="${layer.id}"] .ipc-name`);
+            if (span && !span.querySelector("input")) span.textContent = name;
+        }
         if (hist && editor.renderHistory) editor.renderHistory();
         editor.notifyChanged();
     },
@@ -196,12 +204,18 @@ export const HostVlmPart = {
         const box = b && b[2] - b[0] >= 4 && b[3] - b[1] >= 4 ? b.map((v) => Math.round(v)) : null;
         const area = box ? "selection" : "picture";
         editor.setStatus(`Describing the ${area} with Florence-2 ...`);
+        // a Cancel (or cancel_run, or the tab's close) while the picture is read comes before the job is in the runs it
+        // stops: it is checked here too, so the job never starts and nothing lands in the prompt
+        const gen = editor._vlmGen || 0, genAll = this._vlmGenAll || 0;
+        const stopped = () => (editor._vlmGen || 0) !== gen || (this._vlmGenAll || 0) !== genAll || editor._destroyed || !this._editors.includes(editor);
         let res;
         try {
             const pic = box
                 ? await this.pictureInputBox(editor, box, S, S, { skipFilters: false, background: "#808080" })
                 : await this.pictureInput(editor, S, S, { skipFilters: false, background: "#808080" });
+            if (stopped()) throw new Error("cancelled");
             res = await this.vlmJob(editor, pic.image, { detailed, jobId, timeoutMs });
+            if (stopped()) throw new Error("cancelled");
         } catch (err) {
             const text = String((err && err.message) || err);
             editor.setStatus(text === "cancelled" ? "Describe cancelled." : "Describe failed: " + text, text === "cancelled" ? "info" : failKind(err));

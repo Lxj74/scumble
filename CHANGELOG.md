@@ -98,6 +98,21 @@ the section for its version; `docs/` and the commit history hold the technical d
   - Film looks with a part switched off (Black and white's Structure at 0) no longer fall back to the slow path on the
     GPU, and the display keeps within its GPU memory budget while it falls back to Canvas 2D.
   - A TIFF export that runs short of memory in the fast kernels falls back to the slower ones instead of failing.
+  - A depth or surface map whose file could not be stored is tried again by the next autosave even without a pixel
+    edit, and a map stored right before a save that then failed is kept in the autosave.
+  - The video frame picker: a frame it cannot read (a damaged or cut-off part of the file) says so instead of taking
+    the frame shown before, and a seek while a frame is being taken no longer gives the file another frame's time.
+    Two videos opened one right after the other no longer close each other's picker.
+  - *File › Open* into a tab you close while the file is read opens nothing (it opened the file in a new tab anyway).
+  - The scope no longer counts the whole picture again and again while you pan, zoom or drag the compare divider.
+  - Florence-2: a Cancel while the picture is read stops the describe, and nothing lands in the prompt. A layer named
+    automatically while you type another layer's name no longer ends your typing.
+  - Shift+click's straight line and Clone's source follow a crop, an extend or a resize; a turn forgets them.
+  - Loading, reloading and switching plugins run one after the other.
+  - A local result still being fetched holds back an undo of the extend before it, a crop and a turn.
+  - A paid run's crop is read with Deep paint's pixels as they were at the click, even when you paint during the read.
+  - `sample.mean_color` reads a large picture in strips instead of all at once.
+  - A turned square or chisel brush tip keeps its corners when the stroke ends.
 
 ## 0.1.59 - 2026-11-20
 

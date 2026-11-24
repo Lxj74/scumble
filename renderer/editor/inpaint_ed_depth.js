@@ -378,6 +378,9 @@ export class DepthPart {
         this.renderHistory();
         this.draw();
         this.notifyChanged();
+        // a map whose upload failed is tried again by the background pass (syncLayersOnce), which only runs when
+        // something asks for it: without a pixel edit after it, the autosave kept the map without its file
+        if (this.mapsUnstored().length) this.scheduleAutosave();
         return true;
     }
 
@@ -400,19 +403,23 @@ export class DepthPart {
     async storeMaps({ quiet = false } = {}) {
         const nodeId = (this.node && this.node.id != null) ? this.node.id : "0";
         const failed = [];
+        let stored = false;
         for (const kind of this.mapsUnstored()) {
             // a map dropped, or replaced by one already stored, while an earlier one uploaded (setMaps, an undo)
             const map = this.maps && this.maps[kind];
             if (!map || !this.mapsUnstored().includes(kind)) continue;
             try {
-                if (!map.ref) map.ref = (await uploadCanvas(packMap(map), `n${nodeId}_${kind}`)).ref;
-                if (map.guide && !map.guideRef) map.guideRef = (await uploadCanvas(guideCanvas(map), `n${nodeId}_${kind}guide`)).ref;
+                if (!map.ref) { map.ref = (await uploadCanvas(packMap(map), `n${nodeId}_${kind}`)).ref; stored = true; }
+                if (map.guide && !map.guideRef) { map.guideRef = (await uploadCanvas(guideCanvas(map), `n${nodeId}_${kind}guide`)).ref; stored = true; }
             } catch (err) {
                 const why = String((err && err.message) || err);
                 if (quiet) { console.warn(`Inpaint Canvas: the ${kind} map could not be stored, the next pass tries again`, err); failed.push(kind); continue; }
+                if (stored) this.notifyChanged();
                 throw new Error(`The ${kind} map could not be stored (${why}), so the file would go without it. Try again; Compute the maps again if it keeps failing.`);
             }
         }
+        // the autosave holds the refs now (a save that fails after this flush would leave them only in memory)
+        if (stored) this.notifyChanged();
         return failed;
     }
 
@@ -917,6 +924,9 @@ export class DepthPart {
         this.renderHistory();
         this.draw();
         this.notifyChanged();
+        // a map whose upload failed is tried again by the background pass (syncLayersOnce), which only runs when
+        // something asks for it: without a pixel edit after it, the autosave kept the map without its file
+        if (this.mapsUnstored().length) this.scheduleAutosave();
         return true;
     }
 
@@ -954,6 +964,9 @@ export class DepthPart {
         this.renderHistory();
         this.draw();
         this.notifyChanged();
+        // a map whose upload failed is tried again by the background pass (syncLayersOnce), which only runs when
+        // something asks for it: without a pixel edit after it, the autosave kept the map without its file
+        if (this.mapsUnstored().length) this.scheduleAutosave();
         return true;
     }
 

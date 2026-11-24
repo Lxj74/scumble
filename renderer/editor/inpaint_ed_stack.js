@@ -258,7 +258,15 @@ export class StackPart {
                 if (mask) clones.push(mask);
                 const clip = s.clip ? heldOf.get(s.clip) || null : null;
                 const over = !!(FILTERS[s.filter.filter] && FILTERS[s.filter.filter].over);   // a fill layer goes over the band as a layer
-                steps.push({ filter: s.filter, plain: !mask && s.alpha === 255 && !s.op && !clip && !over, mask, alpha: s.alpha, op: s.op | 0, clip });
+                // a filter that paints from pixels of its own (Deep paint): those held too, as the mask is, so a stroke
+                // during a band read does not tear the run's crop half old, half new; its params as they are now
+                let filter = s.filter;
+                if (FILTERS[filter.filter] && FILTERS[filter.filter].ownPixels && filter.px && typeof filter.px.clone === "function") {
+                    const px = filter.px.clone();
+                    clones.push(px);
+                    filter = { ...filter, px, params: filter.params ? { ...filter.params } : filter.params };
+                }
+                steps.push({ filter, plain: !mask && s.alpha === 255 && !s.op && !clip && !over, mask, alpha: s.alpha, op: s.op | 0, clip });
                 reach += s.reach;
                 run = null;
                 return;

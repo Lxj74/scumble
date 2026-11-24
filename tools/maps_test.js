@@ -175,6 +175,8 @@ async function main() {
         clipBaseOf: InpaintEditor.prototype.clipBaseOf,
         passStores: InpaintEditor.prototype.passStores,
         hasOwnPixels: InpaintEditor.prototype.hasOwnPixels,
+        mapsUnstored: InpaintEditor.prototype.mapsUnstored,
+        scheduleAutosave() {},
         layers: [layer1, filterLayer, clippedLayer],
     };
 
@@ -563,6 +565,8 @@ async function main() {
         _destroyed: false,
         geometryToken: InpaintEditor.prototype.geometryToken,
         setMap: InpaintEditor.prototype.setMap,
+        mapsUnstored: InpaintEditor.prototype.mapsUnstored,
+        scheduleAutosave() {},
         setMapMeta: InpaintEditor.prototype.setMapMeta,
         cancelMapMeta: InpaintEditor.prototype.cancelMapMeta,
         pushUndoSnapshot(snap, opts) { snap.label = opts?.label; this.undo.push(snap); },
