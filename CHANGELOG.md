@@ -2,7 +2,7 @@
 
 What changed in each release, for the people who use Scumble. The release on GitHub carries
 the section for its version; `docs/` and the commit history hold the technical detail.
-## Unreleased
+## 0.1.60 - 2026-11-24
 
 - **Realism Pass on workstation cards:** when the node pack on your ComfyUI still refuses an RTX PRO Blackwell, RTX
   Ada or RTX A card by its name, the status line now names a fork of the pack that carries the fix
