@@ -83,10 +83,18 @@ async function importFile(file) {
     return { id, path: path.join(userDir(), id + ".md") };
 }
 
+/**
+ * Remove the user template `id`: the file of the user folder it was listed from (readDir names a template by its
+ * file's stem as it is, spaces and all, for a file put there through Open folder), never a name made from the id.
+ */
 async function remove(id) {
-    const safe = String(id || "").replace(/[^A-Za-z0-9._-]/g, "");
-    if (!safe) throw new Error("bad template id");
-    await fsp.unlink(path.join(userDir(), safe + ".md"));
+    const want = String(id || "");
+    if (!want) throw new Error("bad template id");
+    let names = [];
+    try { names = await fsp.readdir(userDir()); } catch (_) { names = []; }
+    const name = names.find((n) => /\.md$/i.test(n) && n.replace(/\.md$/i, "") === want);
+    if (!name) throw new Error(`no template of yours has the id "${want}"`);
+    await fsp.unlink(path.join(userDir(), name));
     return true;
 }
 

@@ -173,6 +173,22 @@ let windowSawDefaults = false;
 
 const isMap = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 const same = (a, b) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; } };
+// the shape of a structured setting the defaults do not hold (plugins.js writes it whole)
+const SHAPES = { plugins: { disabled: [], enabled: [] } };
+
+/**
+ * A map written from a view of the defaults, over the stored one. A dictionary (recipeValues, recipeLoras, pluginData
+ * ...: no default fields) takes the written entries over its own. A structured setting (llm, assistant, plugins ...:
+ * fields of their own) takes a written field only where it differs from that field's default, so a field the window
+ * wrote back at its default (llm.models [], plugins.disabled []) leaves the stored one alone.
+ */
+function mapOver(k, had, v) {
+    const shape = isMap(DEFAULTS[k]) && Object.keys(DEFAULTS[k]).length ? DEFAULTS[k] : SHAPES[k];
+    if (!shape) return { ...had, ...v };
+    const out = { ...had };
+    for (const [f, val] of Object.entries(v)) if (!(f in had) || !same(val, shape[f])) out[f] = val;
+    return out;
+}
 
 /**
  * The writes taken while the store was unread (`pending`), over what it holds once read: they were made from a view
@@ -184,7 +200,7 @@ function overStored(stored, patch) {
     for (const [k, v] of Object.entries(patch)) {
         const had = stored[k];
         if (had === undefined || same(had, DEFAULTS[k])) out[k] = v;
-        else if (isMap(had) && isMap(v)) out[k] = { ...had, ...v };
+        else if (isMap(had) && isMap(v)) out[k] = mapOver(k, had, v);
         else console.warn(`settings: "${k}" written while settings.json could not be read; the stored value is kept`);
     }
     return out;
@@ -234,7 +250,7 @@ function set(patch) {
     let p = patch || {};
     if (loaded && windowSawDefaults) {
         p = { ...p };
-        for (const [k, v] of Object.entries(p)) if (isMap(v) && isMap(base[k])) p[k] = { ...base[k], ...v };
+        for (const [k, v] of Object.entries(p)) if (isMap(v) && isMap(base[k])) p[k] = mapOver(k, base[k], v);
     }
     cache = { ...base, ...p };
     if (loaded) writeJson("settings.json", cache);

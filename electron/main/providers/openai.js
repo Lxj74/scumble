@@ -111,7 +111,7 @@ async function postEdits(ctx, model, prompt, pictures, mask, size, extra) {
     for (const [k, v] of Object.entries(extra)) fd.append(k, String(v));
     fd.append("n", "1");
     const r = await ctx.fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { Authorization: "Bearer " + ctx.key }, body: fd });
-    if (!r.ok) throw new Error(`OpenAI ${model}: ${await readError(r)}`);
+    if (!r.ok) throw new Error(`OpenAI ${model}: ${await readError(r, ctx.key)}`);
     return r.json();
 }
 
@@ -183,7 +183,7 @@ module.exports = {
         const r = await ctx.fetch("https://api.openai.com/v1/images/generations", {
             method: "POST", headers: { Authorization: "Bearer " + ctx.key, "Content-Type": "application/json" }, body: JSON.stringify(body),
         });
-        if (!r.ok) throw new Error(`OpenAI ${model}: ${await readError(r)}`);
+        if (!r.ok) throw new Error(`OpenAI ${model}: ${await readError(r, ctx.key)}`);
         const out = unpack(await r.json(), model, size, extra);
         return { ...out, seed: undefined };
     },

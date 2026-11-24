@@ -45,15 +45,24 @@ async function fromFiles(d) {
     return names.map((f) => /^([a-z0-9]+)\.png$/i.exec(f)).filter(Boolean).map((m) => ({ id: m[1], name: m[1], spacing: 0, source: "" }));
 }
 
-/** Every stored tip with its PNG bytes: { id, name, spacing, source, png }. A tip whose file is gone is skipped. */
+/**
+ * Every stored tip with its PNG bytes: { id, name, spacing, source, png }. A tip whose file is gone is skipped; any
+ * other read error (the file held by another program, after three tries) throws, like readIndex's: list() rejects and
+ * the window saves no library this session (a save would delete the tip it could not read).
+ */
 async function list() {
     const out = [];
     for (const t of await readIndex()) {
         if (!t || !SAFE_ID.test(String(t.id))) continue;
-        try {
-            const data = await fsp.readFile(path.join(dir(), t.id + ".png"));
-            out.push({ id: t.id, name: String(t.name || ""), spacing: +t.spacing || 0, source: String(t.source || ""), png: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) });
-        } catch (_) { /* the file is gone: drop the entry */ }
+        let data = null;
+        for (let n = 1; ; n++) {
+            try { data = await fsp.readFile(path.join(dir(), t.id + ".png")); break; } catch (err) {
+                if (err && err.code === "ENOENT") break;   // the file is gone: drop the entry
+                if (n >= 3 || !(err && /^(EBUSY|EPERM|EACCES)$/.test(err.code))) throw err;
+                await new Promise((r) => setTimeout(r, 150 * n));
+            }
+        }
+        if (data) out.push({ id: t.id, name: String(t.name || ""), spacing: +t.spacing || 0, source: String(t.source || ""), png: new Uint8Array(data.buffer, data.byteOffset, data.byteLength) });
     }
     return out;
 }

@@ -315,6 +315,48 @@ function isLoopback(url) {
     }
 }
 
+/**
+ * Node's own fetch for a request that carries a provider's key header (x-key, x-api-key, x-goog-api-key ...): fetch
+ * drops Authorization alone on a redirect to another origin and would send those along, so the redirects are
+ * followed here, hop by hop, the key headers dropped where the origin changes (as curlFetch does). Any other request,
+ * a stream body (it cannot be sent twice) or a Request object goes to fetch as it is.
+ */
+async function nativeKeyed(native, input, init) {
+    const opts = init || {};
+    const redirect = opts.redirect || "follow";
+    if (redirect !== "follow" || typeof input === "object" && !(input instanceof URL) || (opts.body && typeof opts.body.getReader === "function")) return native(input, init);
+    let headers = new Headers(opts.headers || {});
+    let keyed = false;
+    for (const [k] of headers) if (KEY_HEADERS.has(k) && k !== "authorization" && k !== "cookie") keyed = true;
+    if (!keyed) return native(input, init);
+    let url = urlOf(input);
+    let method = String(opts.method || "GET").toUpperCase();
+    let body = opts.body;
+    for (let n = 0; ; n++) {
+        const r = await native(url, { ...opts, method, headers, body, redirect: "manual" });
+        const loc = r.headers.get("location");
+        if (!(r.status >= 300 && r.status < 400 && loc)) {
+            if (n > 0) Object.defineProperty(r, "url", { value: url, enumerable: true });
+            return r;
+        }
+        if (r.body) await r.body.cancel().catch(() => {});
+        if (n >= MAX_REDIRECTS) throw failed("fetch: too many redirects");
+        const u = new URL(url);
+        const next = new URL(loc, u);
+        if ((r.status === 303 && method !== "HEAD") || ((r.status === 301 || r.status === 302) && method === "POST")) {
+            method = "GET";
+            body = undefined;
+            for (const k of [...headers.keys()]) if (/^content-(type|length|encoding|language|location)$/.test(k)) headers.delete(k);
+        }
+        if (next.origin !== u.origin) {
+            const kept = new Headers();
+            for (const [k, v] of headers) if (!KEY_HEADERS.has(k)) kept.append(k, v);
+            headers = kept;
+        }
+        url = next.href;
+    }
+}
+
 let NATIVE = null;
 let state = { enabled: () => false, onFallback: null, warned: false };
 
@@ -340,7 +382,7 @@ function install({ enabled, onFallback } = {}) {
     NATIVE = globalThis.fetch;
     const native = NATIVE;
     globalThis.fetch = function fetch(input, init) {
-        return route(urlOf(input)) === "curl" ? curlFetch(input, init) : native(input, init);
+        return route(urlOf(input)) === "curl" ? curlFetch(input, init) : nativeKeyed(native, input, init);
     };
 }
 
@@ -373,4 +415,4 @@ function status() {
     return { enabled: on, curl: p.ok ? { path: p.path, version: p.version, tls: p.tls || null } : null, error: p.ok ? null : p.error, via: on && p.ok ? "curl" : "node", requests };
 }
 
-module.exports = { curlFetch, install, route, status, probe, isLoopback, KEY_HEADERS, stallSeconds, versionInfo, sweepBodies };
+module.exports = { curlFetch, nativeKeyed, install, route, status, probe, isLoopback, KEY_HEADERS, stallSeconds, versionInfo, sweepBodies };

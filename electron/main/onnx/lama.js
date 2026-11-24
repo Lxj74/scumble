@@ -78,7 +78,15 @@ function spawn(script) {
         const electron = require("electron");
         if (electron && typeof electron === "object" && electron.utilityProcess) {
             const p = electron.utilityProcess.fork(script, [], { serviceName: "Scumble LaMa" });
-            return { post: (m) => p.postMessage(m), kill: () => p.kill(), on: (ev, fn) => p.on(ev, fn), kind: "utility" };
+            let spawned = false;
+            p.once("spawn", () => { spawned = true; });
+            // UtilityProcess.kill() does nothing before "spawn" (no pid yet): a kill that early is done at the spawn (as in
+            // helpers.js), or the process would load LaMa's graph for the queued job and live on without anyone holding it
+            const kill = () => {
+                try { p.kill(); } catch (_) { /* gone already */ }
+                if (!spawned) p.once("spawn", () => { try { p.kill(); } catch (_) { /* gone already */ } });
+            };
+            return { post: (m) => p.postMessage(m), kill, on: (ev, fn) => p.on(ev, fn), kind: "utility" };
         }
     } catch (_) { /* not in Electron's main process */ }
     const p = require("node:child_process").fork(script, [], { serialization: "advanced", stdio: ["ignore", "inherit", "inherit", "ipc"] });

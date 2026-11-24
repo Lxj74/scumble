@@ -65,6 +65,20 @@ async function main() {
         try { await brushes.list(); } catch (e) { err = e; }
         check("an index that cannot be read (not missing, not damaged) makes list reject", !!err && fs.existsSync(path.join(d, "a1.png")), String(err && err.code));
     }
+    // 2b. a tip's PNG that cannot be read (a folder in its place; on Windows also a file another program holds): list
+    // rejects too, rather than dropping the tip a later save would then delete; a PNG that is gone is skipped
+    {
+        const d = fresh();
+        await brushes.save([tip("a1", "A1"), tip("b2", "B2"), tip("c3", "C3")]);
+        fs.unlinkSync(path.join(d, "b2.png"));
+        fs.mkdirSync(path.join(d, "b2.png"));
+        let err = null;
+        try { await brushes.list(); } catch (e) { err = e; }
+        check("a tip's PNG that cannot be read (not missing) makes list reject", !!err, String(err && err.code));
+        fs.rmdirSync(path.join(d, "b2.png"));
+        const got = await brushes.list();
+        check("... a tip's PNG that is gone is skipped", got.map((t) => t.id).sort().join(",") === "a1,c3", short(got.map((t) => t.id)));
+    }
     // 3. no index at all but tips in the folder (a crash between a PNG and the index): they are listed, not dropped
     {
         const d = fresh();

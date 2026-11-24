@@ -154,7 +154,22 @@ class FileMirror {
     constructor(comfy, { root: customRoot } = {}) {
         this.comfy = comfy;             // ComfyClient: fetch(), url, connected state
         this.known = new Map();         // server url -> Set of "type/subfolder/filename" known to exist there
+        // server url -> Map of mirror key -> { name, size, mtimeMs }: a file the server stored under a name of its own
+        // (a plain name it already held at another size), so a later run sends that name instead of uploading it again
+        this.renames = new Map();
         this._root = customRoot || null;
+    }
+
+    renamedMap() {
+        const u = this.comfy.url || "";
+        if (!this.renames.has(u)) this.renames.set(u, new Map());
+        return this.renames.get(u);
+    }
+
+    /** A mirror file written again: a name the server gave its older bytes no longer stands for it. */
+    forgetRename(type, subfolder, filename) {
+        const k = this.key(type, subfolder, filename);
+        for (const m of this.renames.values()) m.delete(k);
     }
 
     key(type, subfolder, filename) {
@@ -193,6 +208,7 @@ class FileMirror {
         const buf = Buffer.from(await file.arrayBuffer());
         let filename;
         try { ({ filename } = await storeMirrorFile(rawName, type, subfolder, buf, this.root(), overwrite)); } catch (err) { return Response.json({ error: err.message }, { status: 400 }); }
+        this.forgetRename(type, subfolder, filename);
         if (this.serverUp() && !this.localOnly) {
             try {
                 await this.pushToServer(type, subfolder, filename, buf, file.type || mimeOf(filename), { overwrite: true });
@@ -222,6 +238,7 @@ class FileMirror {
         if (!buf.length) return Response.json({ error: "empty body" }, { status: 400 });
         let filename;
         try { ({ filename } = await storeMirrorFile(rawName, type, subfolder, buf, this.root(), overwrite)); } catch (err) { return Response.json({ error: err.message }, { status: 400 }); }
+        this.forgetRename(type, subfolder, filename);
         if (this.serverUp() && !this.localOnly) {
             try {
                 await this.pushToServer(type, subfolder, filename, buf, mimeOf(filename), { overwrite: true });
@@ -331,6 +348,23 @@ class FileMirror {
                 st = await fsp.stat(local);
                 if (!st.isFile()) st = null;
             } catch (_) { st = null; }
+            // the server stored this file under a name of its own on an earlier run: that name, while it still holds
+            // the same bytes (the mirror file unchanged, the server's copy of its size)
+            const moved = this.renamedMap().get(k);
+            if (moved && st && moved.size === st.size && moved.mtimeMs === st.mtimeMs) {
+                const mk = this.key(type, subfolder, moved.name);
+                let there = known.has(mk);
+                if (!there) {
+                    try {
+                        const h = await this.comfy.fetch("/view?" + new URLSearchParams({ filename: moved.name, subfolder, type }).toString(), { method: "HEAD" });
+                        const len = h.status === 200 && h.headers && typeof h.headers.get === "function" ? h.headers.get("content-length") : null;
+                        there = len !== null && len !== "" && Number(len) === st.size;
+                    } catch (_) { there = false; }
+                    if (there) known.add(mk);
+                }
+                if (there) { report.renamed[k] = moved.name; ref.filename = moved.name; continue; }
+                this.renamedMap().delete(k);
+            }
             const q = new URLSearchParams({ filename: ref.filename, subfolder, type });
             let onServer = false;
             try {
@@ -353,6 +387,10 @@ class FileMirror {
             if (serverName && serverName !== ref.filename) {
                 report.renamed[k] = serverName;
                 ref.filename = serverName;
+                if (st && st.size === buf.length) {
+                    this.renamedMap().set(k, { name: serverName, size: st.size, mtimeMs: st.mtimeMs });
+                    known.add(this.key(type, subfolder, serverName));
+                }
             } else {
                 known.add(k);
             }
@@ -394,7 +432,7 @@ class FileMirror {
             }
         };
         await walk(base);
-        if (!dryRun) this.known.clear();
+        if (!dryRun) { this.known.clear(); this.renames.clear(); }
         return report;
     }
 

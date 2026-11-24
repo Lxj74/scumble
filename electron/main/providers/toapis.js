@@ -44,7 +44,7 @@
 // Referral: the key link (keyUrl) carries DenRakEiw's ToAPIs referral code.
 "use strict";
 
-const { fetchImage, readError, sleep: realSleep, closestAspect, fitPixels, pollWatch, readTimedOut } = require("./util");
+const { fetchImage, readError, isAbort, sleep: realSleep, closestAspect, fitPixels, pollWatch, readTimedOut } = require("./util");
 const { layoutOf, refRoles } = require("./refs");
 
 const DEFAULT_BASE = "https://toapis.com";
@@ -478,6 +478,7 @@ async function download(ctx, model, id, url) {
         try {
             return await fetchImage(url, ctx.fetch);
         } catch (err) {
+            if (isAbort(err, ctx)) throw err;
             last = err;
             if (attempt < DOWNLOAD_TRIES) {
                 ctx.log(`task ${id}: result download failed (${scrub(err && err.message || err, ctx.key)}), trying again`);

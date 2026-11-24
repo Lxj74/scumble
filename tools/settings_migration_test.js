@@ -260,6 +260,8 @@ function unreadStore() {
         recipeValues: { flux2_klein_local: { "0": "klein.safetensors" }, qwen_local: { "0": "qwen.safetensors" } },
         recipeLoras: { flux2_klein_local: [{ name: "style.safetensors", strength: 1, on: true }] },
         pluginData: { boxes: { last: 3 }, film: { look: "x" } },
+        plugins: { disabled: ["glb"], enabled: [] },
+        llm: { compat: { url: "", model: "" }, models: [{ id: "mine", provider: "openai", model: "gpt-x" }] },
     };
     const realRead = fs.readFileSync, realRename = fs.renameSync;
     let busy = true, reads = 0;
@@ -277,6 +279,8 @@ function unreadStore() {
         s.set({ recipeValues: { zimage_local: { "0": "z.safetensors" } } });
         s.set({ recipe: s.DEFAULTS.recipe, recipeByMode: { local: s.DEFAULTS.recipe } });
         s.set({ pluginData: { boxes: { last: 4 } } });
+        // plugins.setEnabled from the unread view: the whole object, its disabled list the default's empty one
+        s.set({ plugins: { disabled: [], enabled: ["film"] } });
         busy = false;
         const got = s.get();
         check("once read: every stored recipe's rows stay and the window's change joins them",
@@ -284,8 +288,14 @@ function unreadStore() {
         check("... the recipe the user had picked is not replaced by the default written from the unread view; a key it did not hold takes the write",
             got.recipe === "sdxl_inpaint" && eq(got.recipeByMode, { local: s.DEFAULTS.recipe }), JSON.stringify({ recipe: got.recipe, byMode: got.recipeByMode }));
         check("... a plugin's data joins entry by entry", eq(got.pluginData, { boxes: { last: 4 }, film: { look: "x" } }), JSON.stringify(got.pluginData));
+        check("... a structured setting takes only the fields written away from their default (plugins.disabled stays)",
+            eq(got.plugins, { disabled: ["glb"], enabled: ["film"] }), JSON.stringify(got.plugins));
         // the window's maps were seeded from the defaults: a whole map it writes later in the session joins the stored one
         s.set({ recipeLoras: { qwen_local: [] } });
+        // and a structured one it writes from its default-seeded copy (Settings' compat row, llm.models the default [])
+        s.set({ llm: { compat: { url: "http://127.0.0.1:1234/v1", model: "m" }, models: [] } });
+        check("... later in that session llm.models stays stored while the compat row the window changed is taken",
+            eq(onDisk().llm, { compat: { url: "http://127.0.0.1:1234/v1", model: "m" }, models: [{ id: "mine", provider: "openai", model: "gpt-x" }] }), JSON.stringify(onDisk().llm));
         const disk = onDisk();
         check("later in that session a map the window writes from its default-seeded copy joins the stored one (on disk too)",
             eq(Object.keys(disk.recipeLoras).sort(), ["flux2_klein_local", "qwen_local"]) && Object.keys(disk.recipeValues).length === 3 && disk.recipe === "sdxl_inpaint", JSON.stringify(disk.recipeLoras));

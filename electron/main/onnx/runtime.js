@@ -25,6 +25,33 @@ function providerCandidates(device, auto = null) {
 
 const PROVIDER_LABELS = { dml: "DirectML (GPU)", cuda: "CUDA (GPU)", coreml: "CoreML", cpu: "CPU", webgpu: "WebGPU" };
 
+/**
+ * Counts a session's runs in flight, so a release asked during one (the matting model's after its own run, a device
+ * change, Free) waits for the last of them: jobs run side by side in the helper process and share one session per file,
+ * and onnxruntime-node disposes at once while a run waits for its turn (two cutouts at once on the GPU: the first one's
+ * release ended the second one's run).
+ */
+function tracked(entry) {
+    const session = entry.session;
+    const run = session.run.bind(session);
+    entry.busy = 0;
+    entry.releaseWhenIdle = false;
+    session.run = async (...args) => {
+        entry.busy++;
+        try { return await run(...args); } finally {
+            entry.busy--;
+            if (entry.busy === 0 && entry.releaseWhenIdle) { entry.releaseWhenIdle = false; await dispose(entry); }
+        }
+    };
+    return entry;
+}
+
+/** Release a session now, or once its last run in flight is done. */
+async function dispose(entry) {
+    if (entry.busy > 0) { entry.releaseWhenIdle = true; return; }
+    try { await entry.session.release(); } catch (_) { /* already gone */ }
+}
+
 class Runtime {
     constructor() {
         this.device = "auto";
@@ -58,7 +85,7 @@ class Runtime {
             if (provider === "cpu") opts.enableCpuMemArena = false;
             try {
                 const session = await o.InferenceSession.create(file, opts);
-                const entry = { session, provider, file };
+                const entry = tracked({ session, provider, file });
                 this.sessions.set(file, entry);
                 return entry;
             } catch (err) {
@@ -75,7 +102,7 @@ class Runtime {
         const e = this.sessions.get(file);
         if (!e) return false;
         this.sessions.delete(file);
-        try { await e.session.release(); } catch (_) { /* already gone */ }
+        await dispose(e);
         return true;
     }
 
@@ -83,7 +110,7 @@ class Runtime {
     async free() {
         const entries = Array.from(this.sessions.values());
         this.sessions.clear();
-        for (const e of entries) { try { await e.session.release(); } catch (_) { /* already gone */ } }
+        for (const e of entries) await dispose(e);
         return entries.length;
     }
 
@@ -107,4 +134,4 @@ class Runtime {
     }
 }
 
-module.exports = { Runtime, providerCandidates, PROVIDER_LABELS, loadOrt };
+module.exports = { Runtime, providerCandidates, PROVIDER_LABELS, loadOrt, _tracked: tracked };

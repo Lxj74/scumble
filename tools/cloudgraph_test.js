@@ -337,6 +337,34 @@ async function main() {
         cloud._clearNodeList();
     }
 
+    // 12. the view's redirect (review 2026-11-16, nice): a relative Location is the cloud's own and resolved against the
+    // view's URL; plain HTTP or a private host is refused; a key an error body echoes is scrubbed
+    const viewTo = (loc) => {
+        cloud._clearNodeList();
+        const fc = fakeCloud({ classes: all, outputs: () => ({ [saveId]: { images: [{ filename: "v.png" }] } }) });
+        const inner = fc.fetch;
+        fc.fetch = async (url, init) => {
+            const u = new URL(String(url));
+            if (u.pathname === "/api/view") return new Response(null, { status: 302, headers: { location: loc } });
+            if (u.host === "cloud.comfy.org" && u.pathname.startsWith("/signed/")) return new Response(png("RESULT rel " + u.pathname), { status: 200, headers: { "content-type": "image/png" } });
+            return inner(url, init);
+        };
+        return fc;
+    };
+    let fv = viewTo("/signed/v.png");
+    const rel = await cloud.edit(reqOf(), { key: "k-view1", fetch: fv.fetch, sleep: async () => {} });
+    check("a relative redirect from /api/view is resolved against the cloud's URL", tagOf(rel.bytes) === "RESULT rel /signed/v.png", tagOf(rel.bytes));
+    for (const bad of ["http://signed.example/v.png", "https://127.0.0.1/v.png", "https://192.168.1.4/v.png"]) {
+        fv = viewTo(bad);
+        const e = await thrown(() => cloud.edit(reqOf(), { key: "k-view2", fetch: fv.fetch, sleep: async () => {} }));
+        check(`a redirect to ${bad} is refused`, /refused a redirect that is not HTTPS to a public host/.test(e || "") && !fv.calls.some((c) => c.includes(new URL(bad).host)), e);
+    }
+    cloud._clearNodeList();
+    const echo = fakeCloud({ classes: all, promptError: "bad key k-echo-123456 for this account" });
+    const ee = await thrown(() => cloud.edit(reqOf(), { key: "k-echo-123456", fetch: echo.fetch, sleep: async () => {} }));
+    check("a key the error body echoes is scrubbed from the message", /\[key\]/.test(ee || "") && !(ee || "").includes("k-echo-123456"), ee);
+    cloud._clearNodeList();
+
     fs.rmSync(USERDATA, { recursive: true, force: true });
     const failed = results.filter((x) => !x).length;
     console.log(`\n${results.length - failed} of ${results.length} checks passed`);

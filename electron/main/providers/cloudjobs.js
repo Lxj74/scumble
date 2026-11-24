@@ -67,6 +67,10 @@ function unlinkResult(dir, f) {
  * Removes stray files (`*.tmp` or pictures no note names) under `<dir>/results/`. Returns the names removed, or `null`
  * when `cloudjobs.json` is held past retries (so the caller tries again on a later ask without deleting valid files).
  */
+// the results this process is writing now (their names, the temp file's too): a sweep leaves them alone, or a sweep
+// during a split's write (its file is written over several awaits) would take the temp file before its rename
+const writing = new Set();
+
 function sweepResults(dir) {
     if (!dir) return [];
     const resDir = path.join(dir, "results");
@@ -84,7 +88,7 @@ function sweepResults(dir) {
     }
     const removed = [];
     for (const name of names) {
-        if (!name.endsWith(".tmp") && referenced.has(name)) continue;
+        if (writing.has(name) || (!name.endsWith(".tmp") && referenced.has(name))) continue;
         try {
             retrying(() => fs.unlinkSync(path.join(resDir, name)));
             removed.push(name);
@@ -283,4 +287,4 @@ function readSplitPart(file, at, length) {
     } finally { fs.closeSync(fd); }
 }
 
-module.exports = { store, flying, settled, retrying, cleanFile, unlinkResult, sweepResults, writeSplit, readSplitHead, readSplitPart, MAX_AGE_MS, FILE, KEPT };
+module.exports = { store, flying, settled, retrying, cleanFile, unlinkResult, sweepResults, writing, writeSplit, readSplitHead, readSplitPart, MAX_AGE_MS, FILE, KEPT };

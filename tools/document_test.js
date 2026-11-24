@@ -972,6 +972,27 @@ function listTree(dir) {
                 assert(serverFiles.get("input/inpaint_canvas/legacy.png").equals(bytesB) && serverFiles.get("input/inpaint_canvas/legacy (1).png").equals(bytesA), "server keeps other client's legacy.png and stores ours at legacy (1).png");
                 assert(serverFiles.get("input/inpaint_canvas/large_legacy.png").equals(bytesB) && serverFiles.get("input/inpaint_canvas/large_legacy (1).png").equals(bytesA), "server keeps other client's large_legacy.png and stores ours at large_legacy (1).png");
                 assert(!fm.knownSet().has("input/inpaint_canvas/legacy.png") && !fm.knownSet().has("input/inpaint_canvas/IMG_20231005.jpg") && !fm.knownSet().has("input/inpaint_canvas/large_legacy.png"), "renamed plain keys must not be added to known");
+                // 6b. (review 2026-11-16, nice) the next run sends the server's names without uploading the files again
+                // (before: every Generate uploaded them anew and the server made legacy (2).png, (3).png ...), also
+                // with the known set gone (a HEAD on the server's name); a mirror file written again is uploaded anew
+                uploads.length = 0;
+                const again = [{ ...plainRef }, { ...lookRef }, { ...largeRef }];
+                const repAgain = await fm.ensureOnServer(again);
+                assert(uploads.length === 0 && repAgain.uploaded.length === 0 && again[0].filename === "legacy (1).png" && again[1].filename === "IMG_20231005 (1).jpg" && again[2].filename === "large_legacy (1).png" && repAgain.renamed["input/inpaint_canvas/legacy.png"] === "legacy (1).png", "a second run must reuse the server's names: " + JSON.stringify({ repAgain, uploads: uploads.length }));
+                fm.known.clear();
+                const again2 = [{ ...plainRef }];
+                const repAgain2 = await fm.ensureOnServer(again2);
+                assert(uploads.length === 0 && again2[0].filename === "legacy (1).png", "with the known set gone the server's name is checked, not uploaded again: " + JSON.stringify(repAgain2));
+                await new Promise((r) => setTimeout(r, 20));
+                put(M, plainRef, bytesB);
+                fm.forgetRename("input", "inpaint_canvas", "legacy.png");
+                fm.known.clear();
+                serverFiles.set("input/inpaint_canvas/legacy.png", bytesA);
+                const again3 = [{ ...plainRef }];
+                await fm.ensureOnServer(again3);
+                assert(uploads.length === 1, "a mirror file written again is uploaded anew: " + JSON.stringify({ uploads: uploads.length, name: again3[0].filename }));
+                serverFiles.set("input/inpaint_canvas/legacy.png", bytesB);
+                fm.renames.clear();
 
                 // 7. HEAD without Content-Length (re-uploads), mirror file deleted before ensureOnServer (accepted), hash name with server size mismatch (re-uploads with overwrite)
                 serverFiles.set("input/inpaint_canvas/legacy.png", Buffer.from(bytesA));

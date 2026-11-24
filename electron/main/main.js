@@ -177,6 +177,7 @@ let askSeq = 0;
 const ASK_SHOWN_MS = 1000;
 let startMode = "normal";       // "safe": the window came back after a second crash and must not restore
 let askingToQuit = false;
+let runQuit = null;             // --run's exit code at the app's quit, while the app is the run's (agentMain)
 let agentsLeft = false;         // the quit under way is maybeQuit's (the last agent left): it re-checks after the save
 let quitting = false;           // before-quit fired
 
@@ -407,7 +408,7 @@ function createWindow() {
         quitGuard.run(() => flushAll("quit")).then((r) => {
             if (!r.ok || r.ms > 5000) log.record({ level: r.ok ? "info" : "warn", source: "main", message: r.ok ? `saved before closing in ${(r.ms / 1000).toFixed(1)} s` : `closed without saving everything: ${r.timedOut ? "the window did not finish in time" : r.error || "the window did not answer"}` });
             // an agent that connected, or a window shown by a new start, while it saved: this instance is in use again
-            if (forAgents && (agentMode || local.clients.size || windowVisible())) { agentsLeft = false; mirror.localOnly = false; quitGuard.reset(); return; }
+            if (forAgents && (agentMode || local.clients.size || windowVisible())) { agentsLeft = false; mirror.localOnly = false; quitGuard.reset(); dropRunQuit(); return; }
             if (win && !win.isDestroyed()) win.close();
         });
     });
@@ -1620,6 +1621,11 @@ function startApp() {
     app.on("window-all-closed", () => { comfy.disconnect(); app.quit(); });
 }
 
+/** The app is handed over (a window, another agent): its quit is its own, not --run's with the run's exit code. */
+function dropRunQuit() {
+    if (runQuit) { app.removeListener("quit", runQuit); runQuit = null; }
+}
+
 /** An agent-started app ends when nobody talks to it any more and no window is shown. */
 function maybeQuit() {
     if ((ARGS.mcp || ARGS.run !== null) && !agentMode && !windowVisible() && local.clients.size === 0) { agentsLeft = true; comfy.disconnect(); app.quit(); }
@@ -1704,8 +1710,11 @@ async function agentMain() {
     if (ARGS.run !== null) {
         // --run: every step on this one backend (cli_run.js), a JSON line each on stdout. The exit code of a quit of the
         // app it starts: 1 while the run goes (a window that kept crashing closed it), then the run's
+        // It is set at "quit", after every will-quit handler ran (the unfinished saves' cleanup of startApp), and dropped
+        // when the app is handed over to a window or another agent: their quit is the app's own, not this run's
         let code = 1;
-        app.once("will-quit", (e) => { e.preventDefault(); app.exit(code); });
+        runQuit = () => app.exit(code);
+        app.once("quit", runQuit);
         // an app this run starts is an agent's while the run goes: a close of its window hides it, a relaunch is refused
         agentMode = "run";
         try { code = await require("./cli_run").main({ source: ARGS.run, keepGoing: ARGS.keepGoing, backend, cwd: process.cwd() }); }
@@ -1716,6 +1725,7 @@ async function agentMain() {
         // --mcp start's is: it quits when the last of them goes (maybeQuit, on the socket's clients)
         showAgents();
         maybeQuit();
+        if (!agentsLeft) dropRunQuit();
         return;
     }
     if (ARGS.cmd) {

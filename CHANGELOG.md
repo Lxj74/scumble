@@ -37,6 +37,27 @@ the section for its version; `docs/` and the commit history hold the technical d
   - Deep paint on a very large picture: the reduced copies of its paint for a zoomed-out view and for a picture read
     (Save's thumbnail, the magic wand) are made in the background like every other layer's, instead of in one long
     stall of the window, and are no longer kept on the paint for good (about 200 MB at 15000 x 10000).
+  - API keys: with *Use curl for API calls* off (or no curl found), a provider's own key header (BFL, Magnific, Gemini,
+    Anthropic, Comfy Cloud and Comfy's partner nodes) no longer goes along when an answer redirects to another host. An
+    error text that repeats your key shows `[key]` instead, in the log and in the message, for every provider.
+  - Comfy Cloud on its legacy API takes a picture's download link relative to the cloud, refuses one that is not HTTPS
+    to a public host, and tries a failed download again. Magnific and ToAPIs try a download again when the connection
+    drops in the middle of a large picture, and a Cancel during the download stops at once.
+  - A brush tip whose file another program held at start (a virus scanner, a sync client) is no longer deleted by the
+    next change to the brush library: the library is not saved that session.
+  - A settings file that could not be read at start no longer loses your language models or your disabled plugins
+    when you change a setting before it is read again.
+  - Two cutouts at once on the GPU no longer fail the second. LaMa's process, ended right as it starts, no longer
+    stays behind.
+  - A prompt template put into the folder by hand whose name has spaces or other letters can be removed, and removing
+    it never deletes another template.
+  - A picture your ComfyUI stored under a name of its own (it held another file of that name) is no longer uploaded
+    again with every run.
+  - A split into layers kept while its window was away can no longer be swept up by the window's return before it is
+    written, and a close during that write warns as during a run.
+  - `Scumble --run`: an app handed over to a window or another agent after the run quits as itself (an update
+    installs, unfinished saves are cleaned up), not with the run's exit code. Its launcher no longer ends the app when
+    the reader of its output goes away (`| head`).
 
 ## 0.1.59 - 2026-11-20
 

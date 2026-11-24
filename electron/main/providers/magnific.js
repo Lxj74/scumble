@@ -38,7 +38,7 @@
 // layout(req) declares where each picture goes (docs/PLAN_REFS.md C3).
 "use strict";
 
-const { fetchImage, sleep: realSleep, closestAspect, pngSize, seedOf, tierFor, textShape, blackEditMask, pollWatch, readTimedOut } = require("./util");
+const { fetchImage, isAbort, sleep: realSleep, closestAspect, pngSize, seedOf, tierFor, textShape, blackEditMask, pollWatch, readTimedOut } = require("./util");
 const { picturesFor } = require("./comfyrouter")._shared;
 const { layoutOf, refRoles, instruction } = require("./refs");
 
@@ -624,14 +624,17 @@ async function fetchResult(task, ctx, test, route, id) {
     if (!ok) throw new Error(`Magnific ${route}: the answer points to "${s.slice(0, 80)}", which Scumble does not fetch.`);
     if (/^data:/i.test(s)) return fetchImage(s, ctx.fetch);
     for (let n = 1; ; n++) {
-        let r;
+        let r, bytes = null;
         try {
             r = await ctx.fetch(s, {});
+            // the body is read inside the try: a connection that drops in the middle of a large picture is tried again
+            if (r.ok) bytes = Buffer.from(await r.arrayBuffer());
         } catch (err) {
+            if (isAbort(err, ctx)) throw err;
             if (n < DOWNLOAD_TRIES) { ctx.log(`result download failed (${(err && err.message) || err}), trying again`); await ctx.sleep(POLL_MS); continue; }
             throw new Error(`Magnific ${route}: the result could not be downloaded (${(err && err.message) || err}); task ${id}.`);
         }
-        if (r.ok) return { bytes: Buffer.from(await r.arrayBuffer()), mime: (r.headers && r.headers.get && r.headers.get("content-type")) || "image/png" };
+        if (bytes) return { bytes, mime: (r.headers && r.headers.get && r.headers.get("content-type")) || "image/png" };
         if (r.status >= 500 && n < DOWNLOAD_TRIES) { ctx.log(`result download answered ${r.status}, trying again`); await ctx.sleep(POLL_MS); continue; }
         throw new Error(r.status === 403 ? `Magnific ${route}: the result link was refused (expired?); task ${id}.` : `Magnific ${route}: the result download answered ${r.status}; task ${id}.`);
     }

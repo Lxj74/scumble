@@ -60,7 +60,12 @@ child.on("error", (e) => fail(`cannot start ${exe}: ${e.message}`));
 // The whole point: swallow the leading run of CR, LF and space, pass every later byte
 // through untouched (messages after the first carry base64 image content).
 let clean = false;
+// a reader that went away (a closed pipe: `| head`, a client that quit) is no reason to end the child mid-command: its
+// output goes nowhere from then on, and for the MCP server it is the client gone
+let outGone = false;
+process.stdout.on("error", () => { outGone = true; if (SERVES) clientGone(); });
 child.stdout.on("data", (chunk) => {
+    if (outGone) return;
     let buf = chunk;
     if (!clean) {
         let i = 0;

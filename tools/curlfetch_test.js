@@ -135,6 +135,14 @@ function readAll(req) {
         check("a 307 on the same origin keeps the method, the body and the keys", j7.method === "POST" && j7.len === 3 && j7.auth === "Bearer " + KEY && j7.key === KEY, JSON.stringify(j7));
         const j8 = await (await CF.curlFetch(A.base + "/303", { method: "POST", body: "abc" })).json();
         check("a 303 after a POST becomes a GET without a body", j8.method === "GET" && j8.len === 0, JSON.stringify(j8));
+        // the same through Node's own fetch (curl off, or none found): the key headers stay on their origin
+        const nat = globalThis.fetch;
+        const n6 = await (await CF.nativeKeyed(nat, A.base + "/to-b", { headers: { Authorization: "Bearer " + KEY, "x-key": KEY, "x-goog-api-key": KEY, "x-other": "keep" } })).json();
+        check("Node's fetch: a redirect to another origin drops every key header and keeps the rest", n6.host === "b" && n6.auth === null && n6.key === null && n6.goog === null && n6.other === "keep", JSON.stringify(n6));
+        const n7 = await (await CF.nativeKeyed(nat, A.base + "/to-a", { method: "POST", body: "abc", headers: { "x-key": KEY } })).json();
+        check("Node's fetch: a 307 on the same origin keeps the method, the body and the key", n7.method === "POST" && n7.len === 3 && n7.key === KEY, JSON.stringify(n7));
+        const n8 = await CF.nativeKeyed(nat, A.base + "/to-b", { headers: { "x-key": KEY }, redirect: "manual" });
+        check("Node's fetch: redirect manual still answers the 3xx", n8.status === 302, String(n8.status));
         let e9 = null;
         try { await CF.curlFetch(A.base + "/to-b", { redirect: "error" }); } catch (err) { e9 = err; }
         check('redirect: "error" rejects on a 3xx', e9 instanceof TypeError && /redirect/.test(e9.cause && e9.cause.message), String(e9 && e9.cause));

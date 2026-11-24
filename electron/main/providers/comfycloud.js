@@ -41,7 +41,7 @@
 
 const { randomUUID } = require("node:crypto");
 const path = require("node:path");
-const { readError, sleep, num, closestAspect, editAspect, fitPixels } = require("./util");
+const { readError, sleep, num, closestAspect, editAspect, fitPixels, uploadUrlOk, downloadImage } = require("./util");
 const { layoutOf, refRoles, countOf } = require("./refs");
 
 const BASE = "https://cloud.comfy.org";
@@ -318,7 +318,7 @@ async function upload(ctx, bytes, name) {
     fd.append("type", "input");
     fd.append("overwrite", "true");
     const r = await ctx.fetch(BASE + "/api/upload/image", { method: "POST", headers: { "X-API-Key": ctx.key }, body: fd });
-    if (!r.ok) throw new Error(`Comfy Cloud upload (${name}): ${await readError(r)}`);
+    if (!r.ok) throw new Error(`Comfy Cloud upload (${name}): ${await readError(r, ctx.key)}`);
     const d = await r.json();
     if (!d.name) throw new Error("Comfy Cloud upload answered without a name: " + JSON.stringify(d).slice(0, 200));
     return d.subfolder ? `${d.subfolder}/${d.name}` : d.name;
@@ -361,7 +361,7 @@ async function cloudInfo(ctx, base = BASE) {
     const hit = infoCache.get(ctx.key);
     if (hit && Date.now() - hit.at < INFO_TTL_MS) return hit;
     const r = await keyedGet(ctx, base + "/api/object_info", "Comfy Cloud node list");
-    if (!r.ok) throw new Error(`Comfy Cloud node list: ${await readError(r)}`);
+    if (!r.ok) throw new Error(`Comfy Cloud node list: ${await readError(r, ctx.key)}`);
     const j = await r.json();
     const info = j && typeof j === "object" && !Array.isArray(j) ? j : {};
     const entry = { at: Date.now(), info, classes: new Set(Object.keys(info)) };
@@ -576,7 +576,7 @@ async function assetNames(ctx, base, own) {
     const names = [];
     for (let offset = 0, pages = 0; pages < 20; pages++, offset += 500) {
         const r = await keyedGet(ctx, `${base}/api/assets?include_tags=models,loras${own ? "&include_public=false" : ""}&limit=500&offset=${offset}`, "Comfy Cloud model list");
-        if (!r.ok) throw new Error(`Comfy Cloud model list: ${await readError(r)}`);
+        if (!r.ok) throw new Error(`Comfy Cloud model list: ${await readError(r, ctx.key)}`);
         const j = await r.json();
         const list = j && Array.isArray(j.assets) ? j.assets : [];
         for (const a of list) {
@@ -739,15 +739,19 @@ function layout(req) {
 
 async function download(ctx, file) {
     const q = new URLSearchParams({ filename: file.filename, subfolder: file.subfolder || "", type: file.type || "output" });
-    const r = await ctx.fetch(`${BASE}/api/view?${q}`, { headers: { "X-API-Key": ctx.key }, redirect: "manual" });
+    const view = `${BASE}/api/view?${q}`;
+    const r = await ctx.fetch(view, { headers: { "X-API-Key": ctx.key }, redirect: "manual" });
     if (r.status >= 300 && r.status < 400) {
         const loc = r.headers.get("location");
         if (!loc) throw new Error("Comfy Cloud view: redirect without location");
-        const s = await ctx.fetch(loc);   // signed URL, no key
-        if (!s.ok) throw new Error(`Comfy Cloud download: ${s.status}`);
-        return { bytes: Buffer.from(await s.arrayBuffer()), mime: s.headers.get("content-type") || "image/png" };
+        // the signed URL, fetched without the key: resolved against the view's URL (a relative one is the cloud's own),
+        // HTTPS to a public host only, and tried again like any paid picture
+        let next = null;
+        try { next = new URL(loc, view).href; } catch (_) { next = null; }
+        if (!next || !uploadUrlOk(next)) throw new Error("Comfy Cloud view: refused a redirect that is not HTTPS to a public host");
+        return downloadImage(next, ctx, { who: "Comfy Cloud" });
     }
-    if (!r.ok) throw new Error(`Comfy Cloud view: ${await readError(r)}`);
+    if (!r.ok) throw new Error(`Comfy Cloud view: ${await readError(r, ctx.key)}`);
     return { bytes: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "image/png" };
 }
 
@@ -862,7 +866,7 @@ async function run(req, ctx, waitMs) {
         const saveId = !detached ? null : req.options.save && graph[req.options.save] ? String(req.options.save)
             : Object.keys(graph).find((id) => graph[id] && graph[id].class_type === "SaveImage" && /^scumble_save/.test(id));
         const submit = await ctx.fetch(BASE + "/api/prompt", { method: "POST", headers, body: JSON.stringify({ prompt: graph, client_id: "scumble" }) });
-        if (!submit.ok) throw await failed(`Comfy Cloud prompt: ${await readError(submit)}`);
+        if (!submit.ok) throw await failed(`Comfy Cloud prompt: ${await readError(submit, ctx.key)}`);
         const job = await submit.json();
         const id = job.prompt_id;
         if (!id) throw new Error("Comfy Cloud answered without prompt_id: " + JSON.stringify(job).slice(0, 300));
@@ -873,7 +877,7 @@ async function run(req, ctx, waitMs) {
             if (Date.now() - t0 > waitMs) throw new Error(`Comfy Cloud: timed out after ${Math.round(waitMs / 60000)} minutes`);
             await pause(POLL_MS);
             const r = await ctx.fetch(`${BASE}/api/job/${id}/status`, { headers: { "X-API-Key": ctx.key } });
-            if (!r.ok) throw new Error(`Comfy Cloud status: ${await readError(r)}`);
+            if (!r.ok) throw new Error(`Comfy Cloud status: ${await readError(r, ctx.key)}`);
             info = await r.json();
             status = String(info.status || "").toLowerCase();
         }
@@ -883,7 +887,7 @@ async function run(req, ctx, waitMs) {
         for (let tries = 0; !file && tries < 4; tries++) {
             if (tries) await pause(POLL_MS);
             const h = await jobDetails(ctx, id);
-            if (!h.ok) throw new Error(`Comfy Cloud job: ${await readError(h)}`);
+            if (!h.ok) throw new Error(`Comfy Cloud job: ${await readError(h, ctx.key)}`);
             const job = await h.json();
             entry = (job && job[id]) || job || {};
             // a recipe graph may hold more image outputs (a preview): its own SaveImage answers first

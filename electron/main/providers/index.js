@@ -48,7 +48,7 @@ const keys = require("../keys");
 const settings = require("../settings");
 const { MARKER_ANY, TOKEN, REF_NAME_DEFAULT, validRefName, nameOf, refRoles, layoutOf, countOf, checkLayout, resolveMarkers, checkPictures } = require("./refs");
 const boxes = require("./boxes");   // the box rows of a prompt (item 28, docs/PLAN_BOXES.md)
-const { noKeyText } = require("./util");   // a key stored on another PC or Windows account says so (keys.js stale)
+const { noKeyText, scrub } = require("./util");   // a key stored on another PC or Windows account says so (keys.js stale)
 
 // how much of a prompt goes into a log record
 const PROMPT_LOG = 500;
@@ -182,8 +182,12 @@ const cancelledEarly = new Set();   // a Cancel that came before its run reached
 const sweptDirs = new Set();        // userData folders whose results/ folder has been swept of stray files this start
 
 /** How many provider runs (excluding local in-app helper fills) are in flight right now (main.js reloadWindow). */
+// pictures being kept for a window that went away (written after the run's slot is gone): a close or a reload during
+// that write warns and waits like one during a run
+let keeping = 0;
+
 function runningCount() {
-    let n = 0;
+    let n = keeping;
     for (const r of running.values()) if (r.counted) n++;
     return n;
 }
@@ -332,7 +336,12 @@ async function edit(request, hooks = {}) {
             log.record({ source: id, message: `${p.label} ${verb} cancelled after ${secs} s`, detail: { request: shape(), words } });
             throw new Error(words);
         }
-        log.record({ level: "error", source: id, message: `${p.label} ${verb} failed after ${secs} s: ${err && err.message || err}`, detail: { request: shape(), stack: err && err.stack } });
+        // a key an adapter's words carry (an error body that echoes it) is scrubbed here too, before the log and the caller
+        const said = scrub(err && err.message || err, ctx.key);
+        if (err && typeof err === "object" && typeof err.message === "string" && said !== err.message) {
+            try { err.message = said; err.stack = scrub(err.stack, ctx.key); } catch (_) { /* a frozen error: its words go as they are */ }
+        }
+        log.record({ level: "error", source: id, message: `${p.label} ${verb} failed after ${secs} s: ${said}`, detail: { request: shape(), stack: err && scrub(err.stack, ctx.key) } });
         throw err;
     } finally {
         running.delete(runSlot);
@@ -352,7 +361,8 @@ async function edit(request, hooks = {}) {
         } else if (id !== "inapp") {
             const dir = userData();
             if (dir) {
-                let tmp = null;
+                let tmp = null, names = [];
+                keeping++;
                 try {
                     const savedId = crypto.randomUUID();
                     const mime = out.mime || "image/png";
@@ -362,6 +372,8 @@ async function edit(request, hooks = {}) {
                     fs.mkdirSync(resDir, { recursive: true });
                     const target = path.join(resDir, file);
                     tmp = target + ".tmp";
+                    names = [file, file + ".tmp"];
+                    for (const n of names) cloudjobs.writing.add(n);
                     if (split) {
                         // a split's answer is its layers (out.bytes is only the base plate): the whole answer goes into
                         // one file the window lands as a document holding them (cloudjobs.writeSplit, docs/BUGS.md),
@@ -400,6 +412,9 @@ async function edit(request, hooks = {}) {
                 } catch (err) {
                     if (tmp) { try { cloudjobs.retrying(() => fs.unlinkSync(tmp)); } catch (_) { /* swept at next start */ } }
                     log.record({ level: "error", source: id, message: `${p.label}: could not keep the ${split ? "split's layers (generated and charged)" : "picture"} after the window went away: ${(err && err.message) || err}` });
+                } finally {
+                    keeping--;
+                    for (const n of names) cloudjobs.writing.delete(n);
                 }
             }
         }

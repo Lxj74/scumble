@@ -614,6 +614,10 @@ async function main() {
         check("the mock's host is taken only in test mode", /which Scumble does not fetch/.test(x.err || "") && x.s.assets.length === 0, x.err);
         x = await runEdit(v, editReq(v), {}, { poll: [() => task("COMPLETED", [`${BASE}/asset/out.png`])], asset: [e500, net] });
         check("a download that fails on the server's side or the line is tried again, up to three times, without the key", !x.err && x.s.assets.length === 3 && x.s.assets.every((c) => !c.headers["x-magnific-api-key"]), x.err || String(x.s.assets.length));
+        // a body that breaks off after its headers came (a dropped CDN connection on a large picture): tried again too
+        const cut = () => new Response(new ReadableStream({ start(c) { c.enqueue(new Uint8Array([1, 2, 3])); c.error(new TypeError("terminated")); } }), { status: 200, headers: { "content-type": "image/png" } });
+        x = await runEdit(v, editReq(v), {}, { poll: [() => task("COMPLETED", [`${BASE}/asset/out.png`])], asset: [cut] });
+        check("a download whose body breaks off after its headers is tried again", !x.err && tagOf(x.out.bytes) === "RESULT" && x.s.assets.length === 2, x.err || String(x.s.assets.length));
         x = await runEdit(v, editReq(v), {}, { poll: [() => task("COMPLETED", [`${BASE}/asset/out.png`])], asset: [e500, e500, e500] });
         check("... and then it is the error", /the result download answered 500/.test(x.err || "") && x.s.assets.length === 3, x.err);
         x = await runEdit(v, editReq(v), {}, { poll: [() => task("COMPLETED", [`${BASE}/asset/out.png`])], asset: [() => json(403, {})] });

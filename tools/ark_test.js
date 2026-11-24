@@ -873,6 +873,28 @@ async function main() {
             index.ackCloudJob(pic.jobId);
             const after = fs.existsSync(resDir) ? fs.readdirSync(resDir) : [];
             check("ackCloudJob on the kept split: its file and its note go", after.length === 0 && !fs.existsSync(path.join(userDir, "cloudjobs.json")), short({ after }));
+            // (review 2026-11-16, nice) a sweep of the results folder during the split's write (the window's first ask
+            // for the noted jobs) leaves the temp file alone, and the write counts as a run (a close or reload warns)
+            {
+                const cjs = require(path.join(ROOT, "electron", "main", "providers", "cloudjobs.js"));
+                const realWrite = cjs.writeSplit;
+                let swept = null, during = -1;
+                cjs.writeSplit = async (...a) => {
+                    const n = await realWrite(...a);
+                    swept = cjs.sweepResults(userDir);
+                    during = index.runningCount();
+                    return n;
+                };
+                const sLay3 = fakeServer({ answers: [layerAnswer] });
+                globalThis.fetch = sLay3.fetch;
+                let e3 = null;
+                try { await index.edit(layerReq(variant("seedream_5_5")), { pageGone: () => true }); } catch (e) { e3 = String(e && e.message || e); } finally { globalThis.fetch = realFetch; cjs.writeSplit = realWrite; }
+                const kept3 = fs.readdirSync(resDir);
+                check("a sweep during a split's write leaves its temp file, the split is kept, and the write counts as a run",
+                    !e3 && Array.isArray(swept) && swept.length === 0 && kept3.length === 1 && /\.split$/.test(kept3[0]) && during === 1 && index.runningCount() === 0, short({ e3, swept, kept3, during }));
+                const r3 = await index.recoverCloudJobs();
+                for (const pic3 of r3.pictures) index.ackCloudJob(pic3.jobId);
+            }
             // a .split file cut short (a crash while it was written past the rename cannot happen, but a damaged disk can):
             // the note is dropped, nothing is handed to the window
             const sLay2 = fakeServer({ answers: [layerAnswer] });

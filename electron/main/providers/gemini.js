@@ -95,7 +95,7 @@ module.exports = {
         const r = await ctx.fetch(`${BASE}${encodeURIComponent(model)}:generateContent`, {
             method: "POST", headers: { "x-goog-api-key": ctx.key, "Content-Type": "application/json" }, body: JSON.stringify(body),
         });
-        if (!r.ok) throw new Error(`Gemini ${model}: ${await readError(r)}`);
+        if (!r.ok) throw new Error(`Gemini ${model}: ${await readError(r, ctx.key)}`);
         const out = await r.json();
         const cand = out.candidates && out.candidates[0];
         const partsOut = (cand && cand.content && cand.content.parts) || [];

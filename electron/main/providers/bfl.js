@@ -15,7 +15,7 @@
 // layout(req) and textLayout(req) declare where each picture goes (docs/PLAN_REFS.md C3).
 "use strict";
 
-const { b64, fetchImage, readError, sleep, isAbort, num, pollWatch, readTimedOut } = require("./util");
+const { b64, fetchImage, readError, scrub, sleep, isAbort, num, pollWatch, readTimedOut } = require("./util");
 const { layoutOf, refRoles, countOf } = require("./refs");
 const flux3 = require("./flux3");
 
@@ -118,7 +118,7 @@ module.exports = {
         const base = baseOf(req, endpoint);
         const isF3 = flux3.isFlux3(req, endpoint);
         const submit = await ctx.fetch(`${base}/v1/${endpoint}`, { method: "POST", headers, body: JSON.stringify(await bodyFor(req, ctx)) });
-        if (!submit.ok) throw new Error(`BFL ${endpoint}: ${await readError(submit)}`);
+        if (!submit.ok) throw new Error(`BFL ${endpoint}: ${await readError(submit, ctx.key)}`);
         const job = await submit.json();
         const pollUrl = pollUrlOf(job, base);
         const tag = job.id ? ` (task ${job.id})` : "";
@@ -154,8 +154,8 @@ module.exports = {
             try { s = JSON.parse(text); } catch (_) { s = null; }
             if (!s || typeof s !== "object" || !s.status) {
                 // a failed task answers with a status body (HTTP 422, { status: "Error", details }), read below
-                if (!r.ok && !(r.status === 429 || r.status >= 500)) throw new Error(`BFL poll: HTTP ${r.status} ${text.slice(0, 300) || r.statusText || ""}`.trim());
-                await retry(`HTTP ${r.status} ${text.slice(0, 300) || r.statusText || ""}`.trim());
+                if (!r.ok && !(r.status === 429 || r.status >= 500)) throw new Error(`BFL poll: HTTP ${r.status} ${scrub(text, ctx.key).slice(0, 300) || r.statusText || ""}`.trim());
+                await retry(`HTTP ${r.status} ${scrub(text, ctx.key).slice(0, 300) || r.statusText || ""}`.trim());
                 continue;
             }
             misses = 0;
